@@ -65,7 +65,7 @@ Output: `~/Library/Developer/Xcode/DerivedData/Snapzy-*/Build/Products/Debug/Sna
 ./scripts/build_and_copy.sh --configuration Debug --output ~/Applications
 ```
 
-Default output: `./dist/Snapzy.app` (Release, unsigned). Debug copies `Snapzy Debug.app`.
+Default output: `./dist/Snapzy.app` (Release, signed with a persistent self-signed certificate so local Screen Recording / Microphone grants survive rebuilds). Create the cert once with `./scripts/create-signing-cert.sh`. Debug copies `Snapzy Debug.app`. Use `--ad-hoc` if you want a one-off unsigned-style local sign, `--unsigned` to skip signing, or `--signed` to keep Automatic signing.
 
 ### Release Build (Unsigned)
 

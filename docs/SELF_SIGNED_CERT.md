@@ -32,6 +32,15 @@ Push a release and check the "Import self-signed certificate" step in the workfl
 
 ## Local Testing
 
+For day-to-day local Release builds, create the cert once, then use:
+
+```bash
+./scripts/create-signing-cert.sh
+./scripts/build_and_copy.sh
+```
+
+`build_and_copy.sh` signs with `Snapzy Self-Signed` by default, so Screen Recording and Microphone grants persist across rebuilds. Ad-hoc signing (`--ad-hoc`) still resets those grants every build.
+
 Use `scripts/test-tcc-local.sh` to verify TCC permissions persist across updates locally:
 
 ```bash
