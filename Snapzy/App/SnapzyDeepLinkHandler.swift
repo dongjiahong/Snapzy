@@ -61,6 +61,8 @@ struct SnapzyDeepLinkHandler {
       screenCaptureViewModel.captureActiveWindow()
     case .captureAreaAnnotate:
       screenCaptureViewModel.captureAreaAnnotate()
+    case .captureAreaPin:
+      screenCaptureViewModel.captureAreaPin()
     case .captureScrolling:
       screenCaptureViewModel.captureScrolling()
     case .captureOCR:
@@ -107,6 +109,7 @@ enum SnapzyDeepLinkAction: Equatable {
   case captureApplication
   case captureActiveWindow
   case captureAreaAnnotate
+  case captureAreaPin
   case captureScrolling
   case captureOCR
   case captureSmartElement
@@ -144,6 +147,8 @@ enum SnapzyDeepLinkAction: Equatable {
       self = .captureActiveWindow
     case "capture/area-annotate", "capture-area-annotate", "area-annotate", "screenshot/area-annotate":
       self = .captureAreaAnnotate
+    case "capture/area-pin", "capture-area-pin", "area-pin", "screenshot/area-pin":
+      self = .captureAreaPin
     case "capture/scrolling", "scrolling-capture", "capture-scrolling", "scrolling", "screenshot/scrolling":
       self = .captureScrolling
     case "capture/ocr", "capture/text", "capture-text", "ocr", "text":
@@ -187,6 +192,7 @@ enum SnapzyDeepLinkAction: Equatable {
     case .captureApplication: return "captureApplication"
     case .captureActiveWindow: return "captureActiveWindow"
     case .captureAreaAnnotate: return "captureAreaAnnotate"
+    case .captureAreaPin: return "captureAreaPin"
     case .captureScrolling: return "captureScrolling"
     case .captureOCR: return "captureOCR"
     case .captureSmartElement: return "captureSmartElement"

@@ -12,6 +12,7 @@ struct HistoryExpandedCaptureCardView: View, Equatable {
   let isSelected: Bool
   let backgroundStyle: HistoryBackgroundStyle
   let onTap: () -> Void
+  var onToggleCheck: (() -> Void)? = nil
 
   static func == (lhs: HistoryExpandedCaptureCardView, rhs: HistoryExpandedCaptureCardView) -> Bool {
     lhs.record == rhs.record &&
@@ -131,6 +132,13 @@ struct HistoryExpandedCaptureCardView: View, Equatable {
           typeBadge
         }
         .padding(8)
+
+        HistorySelectionCheckbox(
+          isChecked: isSelected,
+          action: { (onToggleCheck ?? onTap)() }
+        )
+        .padding(8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
         if let uploadState = manager.cloudUploadState(for: record) {
           HistoryCloudUploadOverlayView(state: uploadState)

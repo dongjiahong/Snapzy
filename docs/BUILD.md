@@ -58,6 +58,15 @@ xcodebuild -project Snapzy.xcodeproj -scheme Snapzy -configuration Debug build
 
 Output: `~/Library/Developer/Xcode/DerivedData/Snapzy-*/Build/Products/Debug/Snapzy.app`
 
+### Build and copy locally
+
+```bash
+./scripts/build_and_copy.sh
+./scripts/build_and_copy.sh --configuration Debug --output ~/Applications
+```
+
+Default output: `./dist/Snapzy.app` (Release, unsigned). Debug copies `Snapzy Debug.app`.
+
 ### Release Build (Unsigned)
 
 ```bash

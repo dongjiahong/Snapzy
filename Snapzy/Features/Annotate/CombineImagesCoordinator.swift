@@ -1,6 +1,24 @@
 import AppKit
 import UniformTypeIdentifiers
 
+enum HistoryCombineEvaluation: Equatable {
+  case containsUnsupportedMedia
+  case needMoreImages
+  case ready(urls: [URL], skippedMissing: Bool)
+}
+
+enum HistoryCombineEvaluator {
+  static func evaluate(_ records: [CaptureHistoryRecord]) -> HistoryCombineEvaluation {
+    if records.contains(where: { $0.captureType != .screenshot }) {
+      return .containsUnsupportedMedia
+    }
+
+    let existing = records.filter(\.fileExists)
+    guard existing.count >= 2 else { return .needMoreImages }
+    return .ready(urls: existing.map(\.fileURL), skippedMissing: existing.count < records.count)
+  }
+}
+
 @MainActor
 final class CombineImagesCoordinator {
   static let shared = CombineImagesCoordinator()
@@ -18,6 +36,20 @@ final class CombineImagesCoordinator {
 
     guard panel.runModal() == .OK, panel.urls.count >= 2 else { return }
     AnnotateManager.shared.openCombineImages(urls: panel.urls)
+  }
+
+  func combineHistoryRecords(_ records: [CaptureHistoryRecord]) {
+    switch HistoryCombineEvaluator.evaluate(records) {
+    case .containsUnsupportedMedia:
+      AppToastManager.shared.show(message: L10n.Combine.videosNotSupported, style: .warning)
+    case .needMoreImages:
+      AppToastManager.shared.show(message: L10n.Combine.needTwoImages, style: .warning)
+    case .ready(let urls, let skippedMissing):
+      if skippedMissing {
+        AppToastManager.shared.show(message: L10n.Combine.missingFiles, style: .warning)
+      }
+      AnnotateManager.shared.openCombineImages(urls: urls)
+    }
   }
 }
 

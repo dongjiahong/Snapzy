@@ -12,8 +12,8 @@ Persistent history of screenshots, videos, and GIFs backed by GRDB SQLite, surfa
 
 - `HistoryFloatingManager` — panel state. Modes `compact` / `expanded`; position `topCenter` / `bottomCenter` (`HistoryPanelPosition.center` exists for config import, not in UI); panel scale 0.8–1.4 (`history.floating.scale`); `maxDisplayedItems` default 10; background `HistoryBackgroundStyle` hud / solid; toggle-mode shortcut default ⌘E (`defaultToggleModeShortcut`).
 - `HistoryFloatingPanel` keyboard: ⌘C copy selection, ⌘A select all, ⌫ delete, Return open (all suppressed while text input active).
-- Compact: type filter pills + horizontal `HistoryCompactCarouselView` cards.
-- Expanded: type pills + filename search (150ms debounce, `HistorySearchViewModel`) + time filters all / 24H / 7D / 30D (`HistoryFloatingTimeFilter`) + 4-column grid + multi-select + selection bar + custom `HistoryFloatingScrollbar`.
+- Compact: type filter pills + horizontal `HistoryCompactCarouselView` cards with per-card checkboxes. Checked cards show a selection bar with Combine Images.
+- Expanded: type pills + filename search (150ms debounce, `HistorySearchViewModel`) + time filters all / 24H / 7D / 30D (`HistoryFloatingTimeFilter`) + 4-column grid + per-card checkboxes + multi-select + selection bar (including Combine Images) + custom `HistoryFloatingScrollbar`. Combine only accepts screenshots; videos/GIFs toast `L10n.Combine.videosNotSupported`.
 
 ## Card Actions
 

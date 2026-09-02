@@ -10,13 +10,16 @@ import SwiftUI
 struct HistoryCardView: View, Equatable {
   let record: CaptureHistoryRecord
   let isSelected: Bool
+  let isChecked: Bool
   let onTap: () -> Void
+  let onToggleCheck: () -> Void
 
   let backgroundStyle: HistoryBackgroundStyle
 
   static func == (lhs: HistoryCardView, rhs: HistoryCardView) -> Bool {
     lhs.record == rhs.record &&
     lhs.isSelected == rhs.isSelected &&
+    lhs.isChecked == rhs.isChecked &&
     lhs.backgroundStyle == rhs.backgroundStyle &&
     HistoryFloatingManager.shared.cloudUploadState(for: lhs.record) == HistoryFloatingManager.shared.cloudUploadState(for: rhs.record)
   }
@@ -126,6 +129,10 @@ struct HistoryCardView: View, Equatable {
 
         typeBadge
           .padding(10)
+
+        HistorySelectionCheckbox(isChecked: isChecked, action: onToggleCheck)
+          .padding(8)
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
         if let uploadState = manager.cloudUploadState(for: record) {
           HistoryCloudUploadOverlayView(state: uploadState)

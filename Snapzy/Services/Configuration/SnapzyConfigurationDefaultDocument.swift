@@ -273,6 +273,7 @@ enum SnapzyConfigurationDefaultDocument {
     case .area: return .defaultArea
     case .repeatArea: return .defaultRepeatArea
     case .areaAnnotate: return .defaultAreaAnnotate
+    case .areaPin: return .defaultAreaPin
     case .activeWindow: return .defaultActiveWindowCapture
     case .scrollingCapture: return .defaultScrollingCapture
     case .recording: return .defaultRecording

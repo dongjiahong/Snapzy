@@ -716,6 +716,70 @@
         }
       }
     },
+    "preferences-shortcuts.capture-area-pin-description": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bereich auswählen und den Screenshot auf dem Bildschirm anheften"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select a region and pin the screenshot to the screen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seleccione una región y fije la captura en pantalla"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sélectionnez une zone et épinglez la capture à l’écran"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "範囲を選択し、スクリーンショットを画面にピン留めします"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "영역을 선택한 뒤 스크린샷을 화면에 고정합니다"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите область и закрепите снимок на экране"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn vùng và ghim ảnh chụp lên màn hình"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择区域，截图后固定到屏幕上"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇區域，截圖後固定到螢幕上"
+          }
+        }
+      }
+    },
     "preferences-shortcuts.capture-area-description": {
       "extractionState": "stale",
       "localizations": {

@@ -562,6 +562,90 @@
         }
       }
     },
+    "combine.videos-not-supported": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only screenshots can be combined. Videos and GIFs cannot be used."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "結合できるのはスクリーンショットのみです。動画と GIF は使えません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只能拼截图，视频和 GIF 无法用于拼图。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只能拼截圖，影片和 GIF 無法用於拼圖。"
+          }
+        }
+      }
+    },
+    "combine.need-two-images": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select at least two screenshots to combine."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "結合するにはスクリーンショットを 2 枚以上選択してください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请至少选择两张截图再拼图。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請至少選擇兩張截圖再拼圖。"
+          }
+        }
+      }
+    },
+    "combine.missing-files": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some selected screenshots are missing and were skipped."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選択したスクリーンショットの一部が見つからないためスキップしました。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分选中的截图文件已丢失，已跳过。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分選中的截圖檔案已遺失，已跳過。"
+          }
+        }
+      }
+    },
     "combine.vertical": {
       "localizations": {
         "en": {

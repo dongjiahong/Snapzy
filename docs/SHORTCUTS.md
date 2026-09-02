@@ -18,7 +18,7 @@ flowchart TD
     F --> G["dispatch to capture / record / open actions"]
 ```
 
-- Engine: `KeyboardShortcutManager.shared` (`Snapzy/Services/Shortcuts/KeyboardShortcutManager.swift`) — Carbon `RegisterEventHotKey` / `UnregisterEventHotKey`; hotkey IDs use signatures `ZSF1`…`ZSFL` (`0x5A53_46xx`).
+- Engine: `KeyboardShortcutManager.shared` (`Snapzy/Services/Shortcuts/KeyboardShortcutManager.swift`) — Carbon `RegisterEventHotKey` / `UnregisterEventHotKey`; hotkey IDs use signatures `ZSF1`…`ZSFM` (`0x5A53_46xx`).
 - Config model: `ShortcutConfig { keyCode: UInt32, modifiers: UInt32 }` (Carbon modifiers), persisted as JSON in UserDefaults under per-shortcut keys (`fullscreenShortcut`, `areaShortcut`, `recordingShortcut`, …).
 - Fn modifier: custom bit `ShortcutConfig.functionCarbonModifier = 0x2000`. Carbon `RegisterEventHotKey` cannot express Fn, so Fn-containing configs are **not** Carbon-registered — they are collected into `fnBindings` and dispatched via global+local `NSEvent` keyDown monitors (`updateFnMonitors()` / `handleFnKeyDown`), matched exactly (keyCode + full modifier set incl. Fn) by `ShortcutConfig.matches(event:)`. Fn-only combos (e.g. `fn+F3`) and Fn+modifier combos (e.g. `fn+⌘+F3`) both fire; the non-Fn sibling combo is never hijacked.
   - Requires Accessibility permission (global key monitors silently deliver nothing without it) — the Shortcuts settings tab shows a hint row when an Fn binding exists but `AXIsProcessTrusted()` is false (`KeyboardShortcutManager.hasFnBoundShortcuts`).
@@ -33,7 +33,7 @@ flowchart TD
 
 ## Global shortcut table
 
-All 19 `GlobalShortcutKind`s with shipping defaults (verified in `KeyboardShortcutManager.swift`):
+All 20 `GlobalShortcutKind`s with shipping defaults (verified in `KeyboardShortcutManager.swift`):
 
 | Kind | Action | Default |
 | --- | --- | --- |
@@ -41,6 +41,7 @@ All 19 `GlobalShortcutKind`s with shipping defaults (verified in `KeyboardShortc
 | `area` | Capture Area | ⌘⇧4 |
 | `repeatArea`| Repeat Area Screenshot| ⌃⌘⇧4|
 | `areaAnnotate` | Capture Area & Annotate | ⌘⇧7 |
+| `areaPin` | Capture Area & Pin | ⌘⇧8 |
 | `activeWindow` | Capture Active Window | ⌘⇧9 |
 | `scrollingCapture` | Scrolling Capture | ⌘⇧6 |
 | `recording` | Record Screen (start/stop toggle) | ⌘⇧5 |
@@ -152,6 +153,7 @@ Dispatch: AppleEvent `kAEGetURL` → `AppDelegate` (queued pre-launch) → `AppC
 | `snapzy://capture/application` | Application-window capture |
 | `snapzy://capture/active-window` | Capture active window |
 | `snapzy://capture/area-annotate` | Capture area → Annotate |
+| `snapzy://capture/area-pin` | Capture area → Pin |
 | `snapzy://capture/scrolling` | Scrolling capture |
 | `snapzy://capture/ocr` | OCR capture |
 | `snapzy://capture/smart-element` | Smart Element capture |

@@ -17,11 +17,13 @@ flowchart TD
     B --> D["Scrolling capture -> SCROLLING_CAPTURE.md"]
     B --> R0["Record screen -> RECORDING.md"]
     B --> IA["Area + inline annotate -> ANNOTATE.md"]
+    B --> IP["Area + pin"]
 
     C --> H["ScreenCaptureManager"]
     E --> J["captureAreaAsImage -> QRCodeService + OCRService"]
     F --> K["SmartElementCaptureController -> captureAreaAsImage"]
     G --> L["captureAreaAsImage -> ForegroundCutoutService"]
+    IP --> H
 
     H --> M["TempCaptureManager + PostCaptureActionHandler"]
     K --> M
@@ -41,6 +43,7 @@ flowchart TD
 | Application window | Menu / shortcut / `snapzy://capture/application` | Same overlay, `.applicationWindow` mode → `ScreenCaptureManager.captureWindow(target:)` | Normal window or an already open, menu-bar-anchored third-party popover; window image incl. shadow (macOS 14+) |
 | Active window | Menu / shortcut / `snapzy://capture/active-window` | `ActiveWindowResolver` (AX focused window) → `captureWindow` | Window image |
 | Area + inline annotate | `⇧⌘7` | `InlineAreaAnnotateCoordinator` (see [`ANNOTATE.md`](ANNOTATE.md)) | Annotated image file |
+| Area + pin | `⇧⌘8` | `startAreaCapture(.manualRegion, pinToScreen: true)` → `PostCaptureActionHandler.handleScreenshotCapture(url:pinToScreen:)` | Image file pinned to screen |
 | Scrolling | `⇧⌘6` | `ScrollingCaptureCoordinator` (see [`SCROLLING_CAPTURE.md`](SCROLLING_CAPTURE.md)) | Stitched long image |
 | OCR text | `⇧⌘2` | `OCRService` + `QRCodeService` | Clipboard text only (no file) |
 | Object cutout | `⇧⌘1` (macOS 14+) | `ForegroundCutoutService` | Transparent PNG |

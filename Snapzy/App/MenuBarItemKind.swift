@@ -23,6 +23,7 @@ enum MenuBarItemKind: String, CaseIterable {
   // Capture
   case captureArea
   case captureAreaAnnotate
+  case captureAreaPin
   case captureApplication
   case captureFullscreen
   case captureActiveWindow
@@ -48,7 +49,7 @@ enum MenuBarItemKind: String, CaseIterable {
 
   var group: MenuBarItemGroup? {
     switch self {
-    case .captureArea, .captureAreaAnnotate, .captureApplication, .captureFullscreen,
+    case .captureArea, .captureAreaAnnotate, .captureAreaPin, .captureApplication, .captureFullscreen,
          .captureActiveWindow, .scrollingCapture, .captureOCR, .captureSmartElement,
          .captureObjectCutout:
       return .capture
@@ -72,6 +73,7 @@ enum MenuBarItemKind: String, CaseIterable {
     switch self {
     case .captureArea: return L10n.Actions.captureArea
     case .captureAreaAnnotate: return L10n.Actions.captureAreaAnnotate
+    case .captureAreaPin: return L10n.Actions.captureAreaPin
     case .captureApplication: return L10n.PreferencesShortcuts.applicationCaptureTitle
     case .captureFullscreen: return L10n.Actions.captureFullscreen
     case .captureActiveWindow: return L10n.Actions.captureActiveWindow
@@ -96,6 +98,7 @@ enum MenuBarItemKind: String, CaseIterable {
     switch self {
     case .captureArea: return "crop"
     case .captureAreaAnnotate: return "pencil.and.scribble"
+    case .captureAreaPin: return "pin"
     case .captureApplication: return "macwindow"
     case .captureFullscreen: return "rectangle.dashed"
     case .captureActiveWindow: return "macwindow.on.rectangle"

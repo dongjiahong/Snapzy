@@ -130,7 +130,7 @@ channel = "stable" # "stable" | "beta" — invalid values are rejected on import
 
 [menu_bar]
 icon_style = "default" # "default" | "cameraViewfinder" | "cameraFill" | "scissors" | "photoOnRectangle" | "custom"
-item_order = ["captureArea", "captureAreaAnnotate", "captureApplication", "captureFullscreen", "captureActiveWindow", "scrollingCapture", "captureOCR", "captureSmartElement", "captureObjectCutout", "recordScreen", "recordApplication", "openAnnotate", "combineImages", "editVideo", "cloudUploads", "openHistory", "shortcutList"]
+item_order = ["captureArea", "captureAreaAnnotate", "captureAreaPin", "captureApplication", "captureFullscreen", "captureActiveWindow", "scrollingCapture", "captureOCR", "captureSmartElement", "captureObjectCutout", "recordScreen", "recordApplication", "openAnnotate", "combineImages", "editVideo", "cloudUploads", "openHistory", "shortcutList"]
 hidden_items = []
 
 [capture]

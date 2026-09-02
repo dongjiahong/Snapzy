@@ -678,6 +678,11 @@ nonisolated enum L10n {
       defaultValue: "Capture Markup",
       comment: "Action title for the inline capture markup flow"
     )
+    static let captureAreaPin = string(
+      "action.capture-area-pin",
+      defaultValue: "Capture and Pin",
+      comment: "Action title for capturing an area and pinning it to the screen"
+    )
     static let captureFullscreen = string(
       "action.capture-fullscreen",
       defaultValue: "Capture Fullscreen",
@@ -832,6 +837,21 @@ nonisolated enum L10n {
     static let pickerTitle = string("combine.picker-title", defaultValue: "Choose Images to Combine", comment: "Combine image picker title")
     static let pickerMessage = string("combine.picker-message", defaultValue: "Select two or more images.", comment: "Combine image picker message")
     static let pickerConfirm = string("combine.picker-confirm", defaultValue: "Combine", comment: "Combine image picker confirmation")
+    static let videosNotSupported = string(
+      "combine.videos-not-supported",
+      defaultValue: "Only screenshots can be combined. Videos and GIFs cannot be used.",
+      comment: "Toast shown when history combine selection includes video or GIF captures"
+    )
+    static let needTwoImages = string(
+      "combine.need-two-images",
+      defaultValue: "Select at least two screenshots to combine.",
+      comment: "Toast shown when history combine is attempted with fewer than two screenshots"
+    )
+    static let missingFiles = string(
+      "combine.missing-files",
+      defaultValue: "Some selected screenshots are missing and were skipped.",
+      comment: "Toast shown when history combine skips missing screenshot files"
+    )
     static let saveTitle = string("combine.save-title", defaultValue: "Save Combined Image", comment: "Combine save dialog title")
     static let saveMessage = string("combine.save-message", defaultValue: "Choose how to export the stitched result.", comment: "Combine save dialog message")
     static let saveToFile = string("combine.save-to-file", defaultValue: "Save to File…", comment: "Save combined image to file")
@@ -3449,6 +3469,11 @@ nonisolated enum L10n {
       "preferences-shortcuts.capture-area-annotate-description",
       defaultValue: "Select a region, annotate in place, then finish with ⌘S or Enter",
       comment: "Description for inline area annotate capture shortcut"
+    )
+    static let captureAreaPinDescription = string(
+      "preferences-shortcuts.capture-area-pin-description",
+      defaultValue: "Select a region and pin the screenshot to the screen",
+      comment: "Description for area capture and pin shortcut"
     )
     static let captureActiveWindowDescription = string(
       "preferences-shortcuts.capture-active-window-description",

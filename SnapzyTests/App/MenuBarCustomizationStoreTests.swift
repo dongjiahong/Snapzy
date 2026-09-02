@@ -128,14 +128,14 @@ final class MenuBarCustomizationStoreTests: XCTestCase {
     let store = makeStore(defaults: defaults)
     store.setHidden(.captureAreaAnnotate, hidden: true)  // index 1 in capture group
 
-    // Move captureArea (index 0) past captureFullscreen — indices address the
+    // Move captureArea (index 0) past captureApplication — indices address the
     // full group list including the hidden row, matching the settings UI.
-    store.moveItem(from: IndexSet(integer: 0), to: 3, in: .capture)
+    store.moveItem(from: IndexSet(integer: 0), to: 4, in: .capture)
 
     let captureOrder = store.orderedItems(for: .capture)
     XCTAssertEqual(
       captureOrder,
-      [.captureAreaAnnotate, .captureApplication, .captureArea, .captureFullscreen,
+      [.captureAreaAnnotate, .captureAreaPin, .captureApplication, .captureArea, .captureFullscreen,
        .captureActiveWindow, .scrollingCapture, .captureOCR, .captureSmartElement,
        .captureObjectCutout]
     )

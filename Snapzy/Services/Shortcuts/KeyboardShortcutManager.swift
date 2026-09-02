@@ -48,6 +48,12 @@ struct ShortcutConfig: Equatable, Codable {
     modifiers: UInt32(cmdKey | shiftKey)
   )
 
+  /// Cmd + Shift + 8
+  static let defaultAreaPin = ShortcutConfig(
+    keyCode: UInt32(kVK_ANSI_8),
+    modifiers: UInt32(cmdKey | shiftKey)
+  )
+
   /// Cmd + Shift + 5
   static let defaultRecording = ShortcutConfig(
     keyCode: UInt32(kVK_ANSI_5),
@@ -474,6 +480,7 @@ enum GlobalShortcutKind: String, CaseIterable, Codable {
   case area
   case repeatArea
   case areaAnnotate
+  case areaPin
   case activeWindow
   case scrollingCapture
   case recording
@@ -511,6 +518,8 @@ extension GlobalShortcutKind {
       return L10n.Actions.captureRepeatArea
     case .areaAnnotate:
       return L10n.Actions.captureAreaAnnotate
+    case .areaPin:
+      return L10n.Actions.captureAreaPin
     case .activeWindow:
       return L10n.Actions.captureActiveWindow
     case .scrollingCapture:
@@ -551,6 +560,7 @@ enum ShortcutAction {
   case captureArea
   case captureRepeatArea
   case captureAreaAnnotate
+  case captureAreaPin
   case captureApplication
   case captureActiveWindow
   case captureScrolling
@@ -587,6 +597,7 @@ final class KeyboardShortcutManager {
   private(set) var areaShortcut: ShortcutConfig
   private(set) var repeatAreaShortcut: ShortcutConfig
   private(set) var areaAnnotateShortcut: ShortcutConfig
+  private(set) var areaPinShortcut: ShortcutConfig
   private(set) var scrollingCaptureShortcut: ShortcutConfig
   private(set) var recordingShortcut: ShortcutConfig
   /// Backing value holds the recommended `defaultPauseResumeRecording` combo even while the shortcut
@@ -636,6 +647,7 @@ final class KeyboardShortcutManager {
   private var areaHotkeyRef: EventHotKeyRef?
   private var repeatAreaHotkeyRef: EventHotKeyRef?
   private var areaAnnotateHotkeyRef: EventHotKeyRef?
+  private var areaPinHotkeyRef: EventHotKeyRef?
   private var scrollingCaptureHotkeyRef: EventHotKeyRef?
   private var recordingHotkeyRef: EventHotKeyRef?
   private var pauseResumeRecordingHotkeyRef: EventHotKeyRef?
@@ -682,6 +694,7 @@ final class KeyboardShortcutManager {
   private let restartRecordingHotkeyID = EventHotKeyID(signature: OSType(0x5A53_464A), id: 19)    // "ZSFJ"
   private let deleteRecordingHotkeyID = EventHotKeyID(signature: OSType(0x5A53_464B), id: 20)     // "ZSFK"
   private let repeatAreaHotkeyID = EventHotKeyID(signature: OSType(0x5A53_464C), id: 21)         // "ZSFL"
+  private let areaPinHotkeyID = EventHotKeyID(signature: OSType(0x5A53_464D), id: 22)            // "ZSFM"
 
   private var eventHandler: EventHandlerRef?
 
@@ -690,6 +703,7 @@ final class KeyboardShortcutManager {
   private let areaShortcutKey = "areaShortcut"
   private let repeatAreaShortcutKey = "repeatAreaShortcut"
   private let areaAnnotateShortcutKey = "areaAnnotateShortcut"
+  private let areaPinShortcutKey = "areaPinShortcut"
   private let scrollingCaptureShortcutKey = "scrollingCaptureShortcut"
   private let recordingShortcutKey = "recordingShortcut"
   private let pauseResumeRecordingShortcutKey = "pauseResumeRecordingShortcut"
@@ -714,6 +728,7 @@ final class KeyboardShortcutManager {
     areaShortcut = .defaultArea
     repeatAreaShortcut = .defaultRepeatArea
     areaAnnotateShortcut = .defaultAreaAnnotate
+    areaPinShortcut = .defaultAreaPin
     scrollingCaptureShortcut = .defaultScrollingCapture
     recordingShortcut = .defaultRecording
     pauseResumeRecordingShortcut = .defaultPauseResumeRecording
@@ -824,6 +839,7 @@ final class KeyboardShortcutManager {
     case .area: return areaShortcut
     case .repeatArea: return repeatAreaShortcut
     case .areaAnnotate: return areaAnnotateShortcut
+    case .areaPin: return areaPinShortcut
     case .activeWindow: return activeWindowShortcut
     case .scrollingCapture: return scrollingCaptureShortcut
     case .recording: return recordingShortcut
@@ -896,6 +912,17 @@ final class KeyboardShortcutManager {
     mutateShortcutRegistration {
       setShortcut(config, for: .areaAnnotate) {
         areaAnnotateShortcut = $0
+      }
+      saveShortcuts()
+      saveClearedShortcuts()
+    }
+  }
+
+  /// Update area capture and pin shortcut
+  func setAreaPinShortcut(_ config: ShortcutConfig?) {
+    mutateShortcutRegistration {
+      setShortcut(config, for: .areaPin) {
+        areaPinShortcut = $0
       }
       saveShortcuts()
       saveClearedShortcuts()
@@ -1096,6 +1123,9 @@ final class KeyboardShortcutManager {
     if let areaAnnotateData = try? encoder.encode(areaAnnotateShortcut) {
       UserDefaults.standard.set(areaAnnotateData, forKey: areaAnnotateShortcutKey)
     }
+    if let areaPinData = try? encoder.encode(areaPinShortcut) {
+      UserDefaults.standard.set(areaPinData, forKey: areaPinShortcutKey)
+    }
     if let scrollingCaptureData = try? encoder.encode(scrollingCaptureShortcut) {
       UserDefaults.standard.set(scrollingCaptureData, forKey: scrollingCaptureShortcutKey)
     }
@@ -1172,6 +1202,11 @@ final class KeyboardShortcutManager {
       let config = try? decoder.decode(ShortcutConfig.self, from: areaAnnotateData)
     {
       areaAnnotateShortcut = config
+    }
+    if let areaPinData = UserDefaults.standard.data(forKey: areaPinShortcutKey),
+      let config = try? decoder.decode(ShortcutConfig.self, from: areaPinData)
+    {
+      areaPinShortcut = config
     }
     if let scrollingCaptureData = UserDefaults.standard.data(forKey: scrollingCaptureShortcutKey),
       let config = try? decoder.decode(ShortcutConfig.self, from: scrollingCaptureData)
@@ -1367,6 +1402,9 @@ final class KeyboardShortcutManager {
     case areaAnnotateHotkeyID.id:
       actionName = "area-annotate"
       action = .captureAreaAnnotate
+    case areaPinHotkeyID.id:
+      actionName = "area-pin"
+      action = .captureAreaPin
     case activeWindowHotkeyID.id:
       actionName = "active-window"
       action = .captureActiveWindow
@@ -1458,6 +1496,12 @@ final class KeyboardShortcutManager {
       config: shortcut(for: .areaAnnotate),
       hotkeyID: areaAnnotateHotkeyID,
       ref: &areaAnnotateHotkeyRef
+    )
+    registerShortcutIfNeeded(
+      kind: .areaPin,
+      config: shortcut(for: .areaPin),
+      hotkeyID: areaPinHotkeyID,
+      ref: &areaPinHotkeyRef
     )
     registerShortcutIfNeeded(
       kind: .activeWindow,
@@ -1755,6 +1799,10 @@ final class KeyboardShortcutManager {
     if let ref = areaAnnotateHotkeyRef {
       UnregisterEventHotKey(ref)
       areaAnnotateHotkeyRef = nil
+    }
+    if let ref = areaPinHotkeyRef {
+      UnregisterEventHotKey(ref)
+      areaPinHotkeyRef = nil
     }
     if let ref = activeWindowHotkeyRef {
       UnregisterEventHotKey(ref)

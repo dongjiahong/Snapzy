@@ -150,6 +150,7 @@ extension GlobalShortcutKind {
     case .area: return "area"
     case .repeatArea: return "repeat_area"
     case .areaAnnotate: return "area_annotate"
+    case .areaPin: return "area_pin"
     case .activeWindow: return "active_window"
     case .scrollingCapture: return "scrolling_capture"
     case .recording: return "recording"

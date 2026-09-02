@@ -11,9 +11,11 @@ import SwiftUI
 struct HistoryCompactCarouselView: View {
   let records: [CaptureHistoryRecord]
   let selectedId: UUID?
+  let checkedIds: Set<UUID>
   let selectionRevealTrigger: Int
   @Binding var scrollOffset: CGFloat
   let onSelect: (CaptureHistoryRecord) -> Void
+  let onToggleCheck: (CaptureHistoryRecord) -> Void
 
   @State private var dragTranslation: CGFloat = 0
   @State private var isHoveringZone = false
@@ -38,7 +40,9 @@ struct HistoryCompactCarouselView: View {
           HistoryCardView(
             record: record,
             isSelected: selectedId == record.id,
+            isChecked: checkedIds.contains(record.id),
             onTap: { onSelect(record) },
+            onToggleCheck: { onToggleCheck(record) },
             backgroundStyle: backgroundStyle
           )
           .equatable()

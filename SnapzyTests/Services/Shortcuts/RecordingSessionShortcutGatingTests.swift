@@ -361,6 +361,7 @@ private extension KeyboardShortcutManager {
     case .area: setAreaShortcut(config)
     case .repeatArea: setRepeatAreaShortcut(config)
     case .areaAnnotate: setAreaAnnotateShortcut(config)
+    case .areaPin: setAreaPinShortcut(config)
     case .activeWindow: setActiveWindowShortcut(config)
     case .scrollingCapture: setScrollingCaptureShortcut(config)
     case .recording: setRecordingShortcut(config)

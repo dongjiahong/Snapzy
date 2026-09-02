@@ -511,6 +511,18 @@ final class AppStatusBarController: ObservableObject {
       item.isEnabled = viewModel.hasPermission
       return item
 
+    case .captureAreaPin:
+      let item = NSMenuItem(
+        title: L10n.Actions.captureAreaPin,
+        action: #selector(captureAreaPinAction),
+        keyEquivalent: ""
+      )
+      applyConfiguredShortcut(item, for: .areaPin, using: shortcutManager)
+      item.target = self
+      item.image = NSImage(systemSymbolName: "pin", accessibilityDescription: nil)
+      item.isEnabled = viewModel.hasPermission
+      return item
+
     case .captureApplication:
       let item = NSMenuItem(
         title: L10n.PreferencesShortcuts.applicationCaptureTitle,
@@ -744,6 +756,11 @@ final class AppStatusBarController: ObservableObject {
   @objc private func captureAreaAnnotateAction() {
     logMenuAction("captureAreaAnnotate")
     viewModel?.captureAreaAnnotate()
+  }
+
+  @objc private func captureAreaPinAction() {
+    logMenuAction("captureAreaPin")
+    viewModel?.captureAreaPin()
   }
 
   @objc private func captureApplicationAction() {

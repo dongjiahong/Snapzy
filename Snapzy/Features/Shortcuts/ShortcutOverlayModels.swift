@@ -146,6 +146,7 @@ enum ShortcutOverlayContentBuilder {
       ),
       globalItem(kind: .repeatArea, icon: "arrow.clockwise", manager: manager),
       globalItem(kind: .areaAnnotate, icon: "pencil.and.scribble", manager: manager),
+      globalItem(kind: .areaPin, icon: "pin", manager: manager),
       globalItem(kind: .activeWindow, icon: "macwindow", manager: manager),
       globalItem(kind: .scrollingCapture, icon: "arrow.up.and.down", manager: manager),
     ]

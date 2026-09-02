@@ -64,6 +64,7 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
   private let fileAccessManager = SandboxFileAccessManager.shared
   private let tempCaptureManager = TempCaptureManager.shared
   private var isAreaSelectionActive = false
+  private var pinNextAreaCapture = false
   private var activeAreaSelectionSessionID: UUID?
   private var lazyAreaSnapshotTasks: [CGDirectDisplayID: Task<Void, Never>] = [:]
   private var lazyAreaSnapshotFailedDisplayIDs = Set<CGDirectDisplayID>()
@@ -112,7 +113,9 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
       .sink { [weak self] url in
         guard let self else { return }
         Task {
-          await self.postCaptureHandler.handleScreenshotCapture(url: url)
+          let pinToScreen = self.pinNextAreaCapture
+          self.pinNextAreaCapture = false
+          await self.postCaptureHandler.handleScreenshotCapture(url: url, pinToScreen: pinToScreen)
         }
       }
       .store(in: &cancellables)
@@ -356,6 +359,8 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
       captureRepeatArea()
     case .captureAreaAnnotate:
       captureAreaAnnotate()
+    case .captureAreaPin:
+      captureAreaPin()
     case .captureApplication:
       captureApplication()
     case .captureActiveWindow:
@@ -547,6 +552,10 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
     startInlineAreaAnnotateCapture()
   }
 
+  func captureAreaPin() {
+    startAreaCapture(initialInteractionMode: .manualRegion, pinToScreen: true)
+  }
+
 
   /// Re-capture the most recently selected area screenshot rect without
   /// re-entering selection mode. Never opens the selection flow: when no
@@ -634,7 +643,10 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
     }
   }
 
-  private func startAreaCapture(initialInteractionMode: AreaSelectionInteractionMode) {
+  private func startAreaCapture(
+    initialInteractionMode: AreaSelectionInteractionMode,
+    pinToScreen: Bool = false
+  ) {
     // Prevent multiple area captures - only one at a time
     if isAreaSelectionActive {
       DiagnosticLogger.shared.log(.debug, .capture, "captureArea blocked: already active")
@@ -657,6 +669,7 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
     DiagnosticLogger.shared.log(.info, .capture, "Area capture flow started", context: [
       "format": resolvedFormat.fileExtension,
       "initialMode": initialInteractionMode == .applicationWindow ? "application" : "manual",
+      "pinToScreen": pinToScreen ? "true" : "false",
     ])
     let targetDisplayID = ScreenUtility.activeDisplayID()
     let showCursor = showsCursorInScreenshots
@@ -689,7 +702,8 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
         immediateMenuBarPopoverCaptures: immediateMenuBarPopoverCaptures,
         initialInteractionMode: initialInteractionMode,
         hiddenWindowSession: hiddenWindowSession,
-        context: captureContext
+        context: captureContext,
+        pinToScreen: pinToScreen
       )
       return
     }
@@ -775,6 +789,7 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
         } catch let error as CaptureError {
           self.isCapturing = false
           self.isAreaSelectionActive = false
+          self.pinNextAreaCapture = false
           self.lastCaptureResult = .failure(error)
           hiddenWindowSession.restore()
           DiagnosticLogger.shared.log(
@@ -786,6 +801,7 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
         } catch {
           self.isCapturing = false
           self.isAreaSelectionActive = false
+          self.pinNextAreaCapture = false
           self.lastCaptureResult = .failure(.captureFailed(error.localizedDescription))
           hiddenWindowSession.restore()
           DiagnosticLogger.shared.log(
@@ -805,7 +821,8 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
           excludeOwnApplication: excludeOwnApplication,
           initialInteractionMode: initialInteractionMode,
           hiddenWindowSession: hiddenWindowSession,
-          context: captureContext
+          context: captureContext,
+          pinToScreen: pinToScreen
         )
       }
     }
@@ -1020,7 +1037,8 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
     excludeOwnApplication: Bool,
     initialInteractionMode: AreaSelectionInteractionMode = .manualRegion,
     hiddenWindowSession: HiddenWindowSession,
-    context: CaptureContext = .empty
+    context: CaptureContext = .empty,
+    pinToScreen: Bool = false
   ) {
     cancelLazyAreaSnapshotTasks()
     let sessionID = UUID()
@@ -1072,6 +1090,7 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
         cancelLazyAreaSnapshotTasks()
         frozenSession.invalidate()
         hiddenWindowSession.restore()
+        pinNextAreaCapture = false
         DiagnosticLogger.shared.log(.info, .capture, "Area capture cancelled by user")
         lastCaptureResult = .failure(.cancelled)
         return
@@ -1098,6 +1117,7 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
         }
         self.isCapturing = true
         await Task.yield()
+        self.pinNextAreaCapture = pinToScreen
 
         let actualSaveDirectory = self.tempCaptureManager.resolveSaveDirectory(
           for: .screenshot,
@@ -1169,6 +1189,7 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
               frozenSession.invalidate()
               self.isCapturing = false
               self.lastCaptureResult = result
+              self.clearPinFlagIfCaptureFailed(result)
 
               if case .success = result {
                 SoundManager.playScreenshotCapture()
@@ -1176,11 +1197,13 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
             } catch let error as CaptureError {
               frozenSession.invalidate()
               self.isCapturing = false
+              self.pinNextAreaCapture = false
               self.lastCaptureResult = .failure(error)
               DiagnosticLogger.shared.log(.error, .capture, "Frozen area crop failed: \(error.localizedDescription)")
             } catch {
               frozenSession.invalidate()
               self.isCapturing = false
+              self.pinNextAreaCapture = false
               self.lastCaptureResult = .failure(.captureFailed(error.localizedDescription))
               DiagnosticLogger.shared.log(.error, .capture, "Frozen area crop failed: \(error.localizedDescription)")
             }
@@ -1205,6 +1228,7 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
             frozenSession.invalidate()
             self.isCapturing = false
             self.lastCaptureResult = result
+            self.clearPinFlagIfCaptureFailed(result)
 
             if case .success = result {
               SoundManager.playScreenshotCapture()
@@ -1212,6 +1236,7 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
           } else {
             frozenSession.invalidate()
             self.isCapturing = false
+            self.pinNextAreaCapture = false
             self.lastCaptureResult = .failure(.captureFailed(L10n.ScreenCapture.selectionOutsideDisplayBounds))
             DiagnosticLogger.shared.log(
               .error,
@@ -1245,6 +1270,7 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
           frozenSession.invalidate()
           self.isCapturing = false
           self.lastCaptureResult = result
+          self.clearPinFlagIfCaptureFailed(result)
 
           if case .success = result {
             SoundManager.playScreenshotCapture()
@@ -1266,7 +1292,8 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
     immediateMenuBarPopoverCaptures: [ImmediateMenuBarPopoverCapture],
     initialInteractionMode: AreaSelectionInteractionMode,
     hiddenWindowSession: HiddenWindowSession,
-    context: CaptureContext = .empty
+    context: CaptureContext = .empty,
+    pinToScreen: Bool = false
   ) {
     activeAreaSelectionSessionID = UUID()
 
@@ -1294,6 +1321,7 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
 
       guard let selection else {
         hiddenWindowSession.restore()
+        pinNextAreaCapture = false
         DiagnosticLogger.shared.log(.info, .capture, "Live area capture cancelled by user")
         lastCaptureResult = .failure(.cancelled)
         return
@@ -1336,6 +1364,7 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
         defer { hiddenWindowSession.restore() }
         self.isCapturing = true
         await Task.yield()
+        self.pinNextAreaCapture = pinToScreen
 
         let actualSaveDirectory = self.tempCaptureManager.resolveSaveDirectory(
           for: .screenshot,
@@ -1375,10 +1404,17 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
 
         self.isCapturing = false
         self.lastCaptureResult = result
+        self.clearPinFlagIfCaptureFailed(result)
         if case .success = result {
           SoundManager.playScreenshotCapture()
         }
       }
+    }
+  }
+
+  private func clearPinFlagIfCaptureFailed(_ result: CaptureResult) {
+    if case .failure = result {
+      pinNextAreaCapture = false
     }
   }
 

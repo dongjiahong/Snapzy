@@ -14,6 +14,7 @@ struct ShortcutsSettingsView: View {
   @State private var areaShortcut: ShortcutConfig?
   @State private var repeatAreaShortcut: ShortcutConfig?
   @State private var areaAnnotateShortcut: ShortcutConfig?
+  @State private var areaPinShortcut: ShortcutConfig?
   @State private var activeWindowShortcut: ShortcutConfig?
   @State private var areaApplicationCaptureShortcut: CaptureOverlayShortcut?
   @State private var recordingApplicationCaptureShortcut: CaptureOverlayShortcut?
@@ -61,6 +62,7 @@ struct ShortcutsSettingsView: View {
     _areaShortcut = State(initialValue: KeyboardShortcutManager.shared.shortcut(for: .area))
     _repeatAreaShortcut = State(initialValue: KeyboardShortcutManager.shared.shortcut(for: .repeatArea))
     _areaAnnotateShortcut = State(initialValue: KeyboardShortcutManager.shared.shortcut(for: .areaAnnotate))
+    _areaPinShortcut = State(initialValue: KeyboardShortcutManager.shared.shortcut(for: .areaPin))
     _activeWindowShortcut = State(initialValue: KeyboardShortcutManager.shared.shortcut(for: .activeWindow))
     _areaApplicationCaptureShortcut = State(
       initialValue: CaptureOverlayShortcutSettings.applicationCaptureShortcut
@@ -379,6 +381,17 @@ struct ShortcutsSettingsView: View {
             isEnabled: globalEnabledBinding(for: .areaAnnotate),
             validationIssue: globalValidationIssues[.areaAnnotate],
             onShortcutChanged: { handleGlobalShortcutChange($0, for: .areaAnnotate) }
+          )
+
+          ShortcutRecorderView(
+            label: L10n.Actions.captureAreaPin,
+            icon: "pin",
+            description: L10n.PreferencesShortcuts.captureAreaPinDescription,
+            shortcut: $areaPinShortcut,
+            defaultShortcut: .defaultAreaPin,
+            isEnabled: globalEnabledBinding(for: .areaPin),
+            validationIssue: globalValidationIssues[.areaPin],
+            onShortcutChanged: { handleGlobalShortcutChange($0, for: .areaPin) }
           )
 
           ShortcutRecorderView(
@@ -838,6 +851,7 @@ struct ShortcutsSettingsView: View {
     areaShortcut = .defaultArea
     repeatAreaShortcut = .defaultRepeatArea
     areaAnnotateShortcut = .defaultAreaAnnotate
+    areaPinShortcut = .defaultAreaPin
     activeWindowShortcut = .defaultActiveWindowCapture
     areaApplicationCaptureShortcut = CaptureOverlayShortcutSettings.defaultApplicationCaptureShortcut
     scrollingCaptureShortcut = .defaultScrollingCapture
@@ -846,7 +860,7 @@ struct ShortcutsSettingsView: View {
     smartElementShortcut = .defaultSmartElement
 
     let captureKinds: [GlobalShortcutKind] = [
-      .fullscreen, .area, .repeatArea, .areaAnnotate, .activeWindow, .scrollingCapture, .objectCutout, .ocr, .smartElement,
+      .fullscreen, .area, .repeatArea, .areaAnnotate, .areaPin, .activeWindow, .scrollingCapture, .objectCutout, .ocr, .smartElement,
     ]
     for kind in captureKinds {
       globalShortcutEnabled[kind] = true
@@ -1113,6 +1127,9 @@ struct ShortcutsSettingsView: View {
       case .areaAnnotate:
         areaAnnotateShortcut = config
         manager.setAreaAnnotateShortcut(config)
+      case .areaPin:
+        areaPinShortcut = config
+        manager.setAreaPinShortcut(config)
       case .activeWindow:
         activeWindowShortcut = config
         manager.setActiveWindowShortcut(config)

@@ -18,6 +18,7 @@ struct HistoryFloatingContentView: View {
   @State private var selectedCompactFilter: CaptureHistoryType? = nil
   @State private var usesExplicitCompactFilterSelection = false
   @State private var selectedId: UUID? = nil
+  @State private var compactCheckedIds: Set<UUID> = []
   @State private var expandedSelectedIds: Set<UUID> = []
   @State private var expandedLastSelectedId: UUID?
   @State private var compactScrollOffset: CGFloat = 0
@@ -70,6 +71,10 @@ struct HistoryFloatingContentView: View {
     expandedRecords.filter { expandedSelectedIds.contains($0.id) }
   }
 
+  private var compactCheckedRecords: [CaptureHistoryRecord] {
+    compactRecords.filter { compactCheckedIds.contains($0.id) }
+  }
+
   private var basePanelSize: CGSize {
     HistoryFloatingLayout.basePanelSize(for: manager.presentationMode)
   }
@@ -107,6 +112,7 @@ struct HistoryFloatingContentView: View {
       }
       .onChange(of: activeRecordIDs) { _ in
         syncSelectionIfNeeded()
+        pruneCompactSelection()
       }
       .onChange(of: expandedRecordIDs) { _ in
         pruneExpandedSelection()
@@ -169,13 +175,20 @@ struct HistoryFloatingContentView: View {
   // MARK: - Compact
 
   private var compactContent: some View {
-    VStack(spacing: 18) {
-      compactHeader
+    ZStack(alignment: .bottom) {
+      VStack(spacing: 18) {
+        compactHeader
 
-      if compactRecords.isEmpty {
-        compactEmptyState
-      } else {
-        compactScrollContent
+        if compactRecords.isEmpty {
+          compactEmptyState
+        } else {
+          compactScrollContent
+        }
+      }
+      .padding(.bottom, compactCheckedRecords.isEmpty ? 0 : 52)
+
+      if !compactCheckedRecords.isEmpty {
+        compactSelectionBar
       }
     }
     .padding(.horizontal, 22)
@@ -223,10 +236,14 @@ struct HistoryFloatingContentView: View {
     HistoryCompactCarouselView(
       records: compactRecords,
       selectedId: selectedId,
+      checkedIds: compactCheckedIds,
       selectionRevealTrigger: compactSelectionRevealTrigger,
       scrollOffset: $compactScrollOffset,
       onSelect: { record in
         selectRecord(record)
+      },
+      onToggleCheck: { record in
+        toggleCompactCheck(record)
       }
     )
   }
@@ -381,6 +398,42 @@ struct HistoryFloatingContentView: View {
     }
   }
 
+  private var compactSelectionBar: some View {
+    HStack(spacing: 10) {
+      Label(
+        L10n.PreferencesHistory.selectedCaptures(compactCheckedRecords.count),
+        systemImage: "checkmark.circle.fill"
+      )
+      .font(.system(size: 11, weight: .semibold))
+      .foregroundColor(.primary.opacity(0.84))
+
+      selectionControlButton(
+        title: L10n.PreferencesHistory.clearSelection,
+        systemName: "xmark.circle",
+        action: clearCompactSelection
+      )
+
+      selectionControlButton(
+        title: L10n.Combine.open,
+        systemName: "rectangle.3.group",
+        action: combineCompactSelection
+      )
+    }
+    .padding(.horizontal, 14)
+    .padding(.vertical, 9)
+    .background(.ultraThinMaterial, in: Capsule())
+    .background(selectionBarTint, in: Capsule())
+    .overlay(
+      Capsule()
+        .stroke(selectionBarBorder, lineWidth: 1)
+    )
+    .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.32 : 0.14), radius: 18, x: 0, y: 8)
+    .fixedSize(horizontal: true, vertical: false)
+    .frame(maxWidth: .infinity, alignment: .center)
+    .padding(.bottom, 4)
+    .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottom)))
+  }
+
   private var expandedSelectionBar: some View {
     HStack(spacing: 10) {
       Label(
@@ -402,6 +455,12 @@ struct HistoryFloatingContentView: View {
         title: L10n.PreferencesHistory.clearSelection,
         systemName: "xmark.circle",
         action: clearExpandedSelection
+      )
+
+      selectionControlButton(
+        title: L10n.Combine.open,
+        systemName: "rectangle.3.group",
+        action: combineExpandedSelection
       )
 
       selectionControlButton(
@@ -436,6 +495,9 @@ struct HistoryFloatingContentView: View {
             backgroundStyle: backgroundStyle,
             onTap: {
               selectExpandedRecord(record)
+            },
+            onToggleCheck: {
+              toggleExpandedCheck(record)
             }
           )
           .equatable()
@@ -756,6 +818,44 @@ struct HistoryFloatingContentView: View {
   private func selectRecord(_ record: CaptureHistoryRecord) {
     selectedId = record.id
     manager.focusPanel()
+  }
+
+  private func toggleCompactCheck(_ record: CaptureHistoryRecord) {
+    if compactCheckedIds.contains(record.id) {
+      compactCheckedIds.remove(record.id)
+    } else {
+      compactCheckedIds.insert(record.id)
+    }
+    selectedId = record.id
+    manager.focusPanel()
+  }
+
+  private func toggleExpandedCheck(_ record: CaptureHistoryRecord) {
+    if expandedSelectedIds.contains(record.id) {
+      expandedSelectedIds.remove(record.id)
+    } else {
+      expandedSelectedIds.insert(record.id)
+    }
+    expandedLastSelectedId = record.id
+    selectedId = record.id
+    manager.focusPanel()
+  }
+
+  private func clearCompactSelection() {
+    compactCheckedIds.removeAll()
+  }
+
+  private func pruneCompactSelection() {
+    let visibleIds = Set(compactRecords.map(\.id))
+    compactCheckedIds.formIntersection(visibleIds)
+  }
+
+  private func combineCompactSelection() {
+    CombineImagesCoordinator.shared.combineHistoryRecords(compactCheckedRecords)
+  }
+
+  private func combineExpandedSelection() {
+    CombineImagesCoordinator.shared.combineHistoryRecords(expandedSelectedRecords)
   }
 
   private func selectExpandedRecord(_ record: CaptureHistoryRecord) {
