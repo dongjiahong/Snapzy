@@ -155,6 +155,8 @@ enum SnapzyConfigurationExporter {
     writer.value("swipe_right_action", QuickAccessSwipeActionStore.shared.swipeRightAction?.rawValue ?? "none")
     writer.value("hide_card_when_window_open", manager.hideCardWhenWindowOpen)
     writer.value("animation_style", manager.animationStyle.rawValue)
+    writer.value("pin_window_rounded_corners", manager.pinWindowRoundedCorners)
+    writer.value("pin_window_shadow", manager.pinWindowShadowEnabled)
     writer.stringArray("actions_order", actionStore.actionOrder.map(\.rawValue))
     writer.stringArray("enabled_actions", actionStore.enabledActions.map(\.rawValue).sorted())
 

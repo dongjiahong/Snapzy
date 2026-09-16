@@ -401,6 +401,13 @@ enum SnapzyConfigurationImporter {
       }
     }
 
+    collectBool(&reader, "quick_access", "pin_window_rounded_corners", mutations: &mutations) {
+      manager.pinWindowRoundedCorners = $0
+    }
+    collectBool(&reader, "quick_access", "pin_window_shadow", mutations: &mutations) {
+      manager.pinWindowShadowEnabled = $0
+    }
+
     let order = reader.stringArray("quick_access", "actions_order")?.compactMap(QuickAccessActionKind.init(rawValue:))
     let enabled = reader.stringArray("quick_access", "enabled_actions")?.compactMap(QuickAccessActionKind.init(rawValue:))
     let slots = quickAccessSlots(from: &reader)

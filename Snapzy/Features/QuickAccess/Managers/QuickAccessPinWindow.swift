@@ -2,10 +2,11 @@
 //  QuickAccessPinWindow.swift
 //  Snapzy
 //
-//  Borderless pin window with lock-mode mouse passthrough.
+//  Borderless pin window with Snipaste-style copy, dismiss, and zoom.
 //
 
 import AppKit
+import Carbon.HIToolbox
 
 @MainActor
 final class QuickAccessPinWindow: NSPanel {
@@ -13,18 +14,25 @@ final class QuickAccessPinWindow: NSPanel {
   internal static let scrollZoomSensitivityPrecise: CGFloat = 0.0015
   internal static let scrollZoomSensitivityCoarse: CGFloat = 0.02
   internal static let magnificationZoomSensitivity: CGFloat = 0.2
+  private static let copyKeyCode = UInt16(kVK_ANSI_C)
+  private static let copyHotKeySignature = OSType(0x5A51_5043)
+  private static let copyHotKeyID = EventHotKeyID(signature: copyHotKeySignature, id: 1)
 
   var onEscapeRequested: (() -> Void)?
+  var onCopyRequested: (() -> Void)?
+  var onDoubleClickRequested: (() -> Void)?
   var onZoomStepRequested: ((CGFloat) -> Void)?
 
-  private weak var pinState: QuickAccessPinWindowState?
   private var localMouseMonitor: Any?
   private var globalMouseMonitor: Any?
   private var localKeyMonitor: Any?
-  private var globalKeyMonitor: Any?
+  private var isMouseMonitorsSuspended = false
 
-  init(contentRect: NSRect, state: QuickAccessPinWindowState) {
-    pinState = state
+  private static weak var activeCopyWindow: QuickAccessPinWindow?
+  private static var copyHotKeyRef: EventHotKeyRef?
+  private static var copyHotKeyHandler: EventHandlerRef?
+
+  init(contentRect: NSRect, state _: QuickAccessPinWindowState) {
     super.init(
       contentRect: contentRect,
       styleMask: [.borderless, .nonactivatingPanel],
@@ -39,7 +47,7 @@ final class QuickAccessPinWindow: NSPanel {
   override var canBecomeMain: Bool { false }
 
   override func keyDown(with event: NSEvent) {
-    if handleEscapeIfNeeded(event) {
+    if handleKeyDownIfNeeded(event) {
       return
     }
 
@@ -50,14 +58,17 @@ final class QuickAccessPinWindow: NSPanel {
     switch event.type {
     case .scrollWheel where handleScrollZoomIfNeeded(event):
       return
+    case .leftMouseUp where handleDoubleClickIfNeeded(event):
+      return
     default:
       super.sendEvent(event)
     }
   }
 
-  private var isMouseMonitorsSuspended = false
-
   override func close() {
+    if Self.activeCopyWindow === self {
+      Self.setActiveCopyWindow(nil)
+    }
     if !isMouseMonitorsSuspended {
       removeMouseMonitorsOnly()
     }
@@ -65,41 +76,34 @@ final class QuickAccessPinWindow: NSPanel {
       NSEvent.removeMonitor(localKeyMonitor)
       self.localKeyMonitor = nil
     }
-    if let globalKeyMonitor {
-      NSEvent.removeMonitor(globalKeyMonitor)
-      self.globalKeyMonitor = nil
-    }
     isMouseMonitorsSuspended = false
     super.close()
   }
 
   func updateMousePassthrough() {
-    guard let pinState else {
-      ignoresMouseEvents = false
-      return
-    }
+    let isInside = frame.contains(NSEvent.mouseLocation)
+    ignoresMouseEvents = false
 
-    let mouseLocation = NSEvent.mouseLocation
-    let isInside = frame.contains(mouseLocation)
-    pinState.isMouseInside = isInside
-
-    guard pinState.isLocked else {
-      ignoresMouseEvents = false
-      if isInside {
-        if !isKeyWindow {
-          makeKey()
-        }
-      } else {
-        if isKeyWindow {
-          if let otherWindow = NSApp.windows.first(where: { $0 != self && $0.canBecomeKey && $0.isVisible }) {
-            otherWindow.makeKey()
-          }
+    if isInside {
+      Self.setActiveCopyWindow(self)
+      if !isKeyWindow {
+        makeKey()
+      }
+    } else {
+      if Self.activeCopyWindow === self {
+        Self.setActiveCopyWindow(nil)
+      }
+      if isKeyWindow {
+        if let otherWindow = NSApp.windows.first(where: { $0 != self && $0.canBecomeKey && $0.isVisible }) {
+          otherWindow.makeKey()
         }
       }
-      return
     }
+  }
 
-    ignoresMouseEvents = isInside && !lockButtonScreenRect.contains(mouseLocation)
+  func applyAppearance(roundedCorners: Bool, shadowEnabled: Bool) {
+    hasShadow = shadowEnabled
+    applyCornerRadius(roundedCorners ? NSWindow.defaultCornerRadius : 0)
   }
 
   private func configure() {
@@ -112,13 +116,8 @@ final class QuickAccessPinWindow: NSPanel {
     collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
     acceptsMouseMovedEvents = true
     ignoresMouseEvents = false
-    applyCornerRadius()
     level = Self.pinnedWindowLevel
     becomesKeyOnlyIfNeeded = false
-  }
-
-  private var lockButtonScreenRect: NSRect {
-    NSRect(x: frame.maxX - 48, y: frame.maxY - 48, width: 48, height: 48)
   }
 
   private func installMouseMonitors() {
@@ -144,30 +143,12 @@ final class QuickAccessPinWindow: NSPanel {
     if localKeyMonitor == nil {
       localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
         let didHandle = MainActor.assumeIsolated {
-          self?.handleEscapeIfNeeded(event) ?? false
+          guard let self else { return false }
+          guard self.isKeyWindow || self.frame.contains(NSEvent.mouseLocation) else { return false }
+          return self.handleKeyDownIfNeeded(event)
         }
         return didHandle ? nil : event
       }
-    }
-
-    if globalKeyMonitor == nil {
-      globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-        Task { @MainActor in
-          _ = self?.handleEscapeIfNeeded(event)
-        }
-      }
-    }
-  }
-
-  private func removeEventMonitors() {
-    removeMouseMonitorsOnly()
-    if let localKeyMonitor {
-      NSEvent.removeMonitor(localKeyMonitor)
-      self.localKeyMonitor = nil
-    }
-    if let globalKeyMonitor {
-      NSEvent.removeMonitor(globalKeyMonitor)
-      self.globalKeyMonitor = nil
     }
   }
 
@@ -194,47 +175,75 @@ final class QuickAccessPinWindow: NSPanel {
     installMouseMonitors()
   }
 
+  @discardableResult
+  func handleKeyDownIfNeeded(_ event: NSEvent) -> Bool {
+    if handleEscapeIfNeeded(event) {
+      return true
+    }
+    return handleCopyIfNeeded(event)
+  }
+
+  @discardableResult
+  func handleDoubleClickIfNeeded(_ event: NSEvent) -> Bool {
+    guard event.clickCount == 2 else { return false }
+
+    onDoubleClickRequested?()
+    return true
+  }
+
   private func handleEscapeIfNeeded(_ event: NSEvent) -> Bool {
     guard event.keyCode == 53 else { return false }
-    guard let pinState, !pinState.isLocked else { return false }
     guard isKeyWindow || frame.contains(NSEvent.mouseLocation) else { return false }
 
     onEscapeRequested?()
     return true
   }
 
+  private func handleCopyIfNeeded(_ event: NSEvent) -> Bool {
+    guard Self.isControlC(event) else { return false }
+
+    performCopy()
+    return true
+  }
+
+  private func performCopy() {
+    onCopyRequested?()
+  }
+
   private func handleScrollZoomIfNeeded(_ event: NSEvent) -> Bool {
     guard let step = Self.scrollZoomStep(
       scrollingDeltaX: event.scrollingDeltaX,
       scrollingDeltaY: event.scrollingDeltaY,
-      hasPreciseScrollingDeltas: event.hasPreciseScrollingDeltas,
-      isLocked: pinState?.isLocked == true
+      hasPreciseScrollingDeltas: event.hasPreciseScrollingDeltas
     ), let onZoomStepRequested else { return false }
 
     onZoomStepRequested(step)
     return true
   }
 
-
   @discardableResult
   func requestMagnifyZoom(magnification: CGFloat) -> Bool {
-    guard let step = Self.magnifyZoomStep(
-      magnification: magnification,
-      isLocked: pinState?.isLocked == true
-    ), let onZoomStepRequested else { return false }
+    guard let step = Self.magnifyZoomStep(magnification: magnification),
+          let onZoomStepRequested else { return false }
 
     onZoomStepRequested(step)
     return true
+  }
+
+  static func isControlC(_ event: NSEvent) -> Bool {
+    let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+    guard modifiers.contains(.control),
+          !modifiers.contains(.command),
+          !modifiers.contains(.option),
+          !modifiers.contains(.shift) else { return false }
+    return event.keyCode == copyKeyCode
   }
 
   static func scrollZoomStep(
     scrollingDeltaX deltaX: CGFloat = 0,
     scrollingDeltaY deltaY: CGFloat,
-    hasPreciseScrollingDeltas: Bool,
-    isLocked: Bool
+    hasPreciseScrollingDeltas: Bool
   ) -> CGFloat? {
-    guard !isLocked else { return nil }
-
     let magnitude = sqrt(deltaX * deltaX + deltaY * deltaY)
     guard magnitude.isFinite, magnitude != 0 else { return nil }
 
@@ -250,10 +259,83 @@ final class QuickAccessPinWindow: NSPanel {
     return combinedDelta * sensitivity
   }
 
-  static func magnifyZoomStep(magnification: CGFloat, isLocked: Bool) -> CGFloat? {
-    guard !isLocked,
-          magnification.isFinite,
-          magnification != 0 else { return nil }
+  static func magnifyZoomStep(magnification: CGFloat) -> CGFloat? {
+    guard magnification.isFinite, magnification != 0 else { return nil }
     return magnification * magnificationZoomSensitivity
+  }
+
+  private static func setActiveCopyWindow(_ window: QuickAccessPinWindow?) {
+    activeCopyWindow = window
+    if window == nil {
+      removeCopyHotKey()
+    } else {
+      installCopyHotKeyIfNeeded()
+    }
+  }
+
+  private static func installCopyHotKeyIfNeeded() {
+    installCopyHotKeyHandlerIfNeeded()
+    guard copyHotKeyRef == nil else { return }
+
+    var ref: EventHotKeyRef?
+    let status = RegisterEventHotKey(
+      UInt32(kVK_ANSI_C),
+      UInt32(controlKey),
+      copyHotKeyID,
+      GetApplicationEventTarget(),
+      0,
+      &ref
+    )
+    guard status == noErr else { return }
+    copyHotKeyRef = ref
+  }
+
+  private static func removeCopyHotKey() {
+    if let copyHotKeyRef {
+      UnregisterEventHotKey(copyHotKeyRef)
+      self.copyHotKeyRef = nil
+    }
+  }
+
+  private static func installCopyHotKeyHandlerIfNeeded() {
+    guard copyHotKeyHandler == nil else { return }
+
+    var spec = EventTypeSpec(
+      eventClass: OSType(kEventClassKeyboard),
+      eventKind: OSType(kEventHotKeyPressed)
+    )
+    let callback: EventHandlerUPP = { _, event, _ in
+      guard let event else { return OSStatus(eventNotHandledErr) }
+
+      var hotKeyID = EventHotKeyID()
+      GetEventParameter(
+        event,
+        EventParamName(kEventParamDirectObject),
+        EventParamType(typeEventHotKeyID),
+        nil,
+        MemoryLayout<EventHotKeyID>.size,
+        nil,
+        &hotKeyID
+      )
+      guard hotKeyID.signature == QuickAccessPinWindow.copyHotKeySignature else {
+        return OSStatus(eventNotHandledErr)
+      }
+
+      DispatchQueue.main.async {
+        MainActor.assumeIsolated {
+          QuickAccessPinWindow.activeCopyWindow?.performCopy()
+        }
+      }
+      return noErr
+    }
+
+    InstallEventHandler(
+      GetApplicationEventTarget(),
+      callback,
+      1,
+      &spec,
+      nil,
+      &copyHotKeyHandler
+    )
   }
 }

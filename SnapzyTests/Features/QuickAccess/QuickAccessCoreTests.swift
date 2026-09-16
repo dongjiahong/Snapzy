@@ -6,6 +6,7 @@
 //
 
 import AppKit
+import Carbon.HIToolbox
 import XCTest
 @testable import Snapzy
 
@@ -293,7 +294,6 @@ final class QuickAccessCoreTests: XCTestCase {
     XCTAssertEqual(displaySize.width, minimumSize.width, accuracy: 0.001)
     XCTAssertEqual(displaySize.height, minimumSize.height, accuracy: 0.001)
     XCTAssertEqual(state.zoomPercent, 100)
-    XCTAssertFalse(state.zoomMenuPercents.contains(50))
   }
 
   func testQuickAccessPinWindowState_appliesContinuousZoomStepsWithinBounds() {
@@ -365,34 +365,24 @@ final class QuickAccessCoreTests: XCTestCase {
     XCTAssertEqual(constrainedFrame.height, 552, accuracy: 0.001)
   }
 
-  func testQuickAccessPinWindow_scrollZoomStepRequiresUnlockedWindow() throws {
+  func testQuickAccessPinWindow_scrollZoomStepIgnoresInvalidDeltas() throws {
     let step = QuickAccessPinWindow.scrollZoomStep(
       scrollingDeltaY: 2,
-      hasPreciseScrollingDeltas: false,
-      isLocked: false
+      hasPreciseScrollingDeltas: false
     )
 
     let unwrappedStep = try XCTUnwrap(step)
     XCTAssertEqual(unwrappedStep, 2.0 * QuickAccessPinWindow.scrollZoomSensitivityCoarse, accuracy: 0.001)
     XCTAssertNil(
       QuickAccessPinWindow.scrollZoomStep(
-        scrollingDeltaY: 2,
-        hasPreciseScrollingDeltas: false,
-        isLocked: true
-      )
-    )
-    XCTAssertNil(
-      QuickAccessPinWindow.scrollZoomStep(
         scrollingDeltaY: .infinity,
-        hasPreciseScrollingDeltas: false,
-        isLocked: false
+        hasPreciseScrollingDeltas: false
       )
     )
 
     let stepPrecise = QuickAccessPinWindow.scrollZoomStep(
       scrollingDeltaY: 2,
-      hasPreciseScrollingDeltas: true,
-      isLocked: false
+      hasPreciseScrollingDeltas: true
     )
     let unwrappedPrecise = try XCTUnwrap(stepPrecise)
     XCTAssertEqual(unwrappedPrecise, 2.0 * QuickAccessPinWindow.scrollZoomSensitivityPrecise, accuracy: 0.001)
@@ -400,8 +390,7 @@ final class QuickAccessCoreTests: XCTestCase {
     let stepDiagonal = QuickAccessPinWindow.scrollZoomStep(
       scrollingDeltaX: 3,
       scrollingDeltaY: 4,
-      hasPreciseScrollingDeltas: true,
-      isLocked: false
+      hasPreciseScrollingDeltas: true
     )
     let unwrappedDiagonal = try XCTUnwrap(stepDiagonal)
     XCTAssertEqual(unwrappedDiagonal, 5.0 * QuickAccessPinWindow.scrollZoomSensitivityPrecise, accuracy: 0.001)
@@ -409,27 +398,23 @@ final class QuickAccessCoreTests: XCTestCase {
     let stepHorizontal = QuickAccessPinWindow.scrollZoomStep(
       scrollingDeltaX: -5,
       scrollingDeltaY: 0,
-      hasPreciseScrollingDeltas: true,
-      isLocked: false
+      hasPreciseScrollingDeltas: true
     )
     let unwrappedHorizontal = try XCTUnwrap(stepHorizontal)
     XCTAssertEqual(unwrappedHorizontal, -5.0 * QuickAccessPinWindow.scrollZoomSensitivityPrecise, accuracy: 0.001)
   }
 
-  func testQuickAccessPinWindow_magnifyZoomStepRequiresUnlockedFiniteDelta() {
+  func testQuickAccessPinWindow_magnifyZoomStepRequiresFiniteDelta() {
     XCTAssertEqual(
-      QuickAccessPinWindow.magnifyZoomStep(magnification: 0.18, isLocked: false),
+      QuickAccessPinWindow.magnifyZoomStep(magnification: 0.18),
       0.18 * QuickAccessPinWindow.magnificationZoomSensitivity
     )
     XCTAssertNil(
-      QuickAccessPinWindow.magnifyZoomStep(magnification: 0.18, isLocked: true)
-    )
-    XCTAssertNil(
-      QuickAccessPinWindow.magnifyZoomStep(magnification: .nan, isLocked: false)
+      QuickAccessPinWindow.magnifyZoomStep(magnification: .nan)
     )
   }
 
-  func testQuickAccessPinWindow_requestMagnifyZoomRoutesUnlockedFiniteSteps() {
+  func testQuickAccessPinWindow_requestMagnifyZoomRoutesFiniteSteps() {
     let image = NSImage(size: CGSize(width: 24, height: 16))
     let state = QuickAccessPinWindowState(
       id: UUID(),
@@ -454,9 +439,7 @@ final class QuickAccessCoreTests: XCTestCase {
     XCTAssertEqual(steps.count, 1)
     XCTAssertEqual(steps[0], 0.14 * QuickAccessPinWindow.magnificationZoomSensitivity, accuracy: 0.001)
 
-    state.isLocked = true
-
-    XCTAssertFalse(window.requestMagnifyZoom(magnification: 0.14))
+    XCTAssertFalse(window.requestMagnifyZoom(magnification: 0))
     XCTAssertEqual(steps.count, 1)
   }
 
@@ -522,6 +505,40 @@ final class QuickAccessCoreTests: XCTestCase {
     window.sendEvent(eventDiagonal)
     XCTAssertEqual(steps.count, 4)
     XCTAssertEqual(steps[3], 10.0 * QuickAccessPinWindow.scrollZoomSensitivityPrecise, accuracy: 0.001)
+  }
+
+  func testQuickAccessPinWindow_controlCCopiesPinnedImage() {
+    let window = makePinWindow()
+    defer { window.close() }
+
+    var copyCount = 0
+    window.onCopyRequested = { copyCount += 1 }
+
+    let copied = window.handleKeyDownIfNeeded(
+      MockKeyDownEvent.make(keyCode: UInt16(kVK_ANSI_C), modifierFlags: [.control])
+    )
+    XCTAssertTrue(copied)
+    XCTAssertEqual(copyCount, 1)
+
+    let commandC = window.handleKeyDownIfNeeded(
+      MockKeyDownEvent.make(keyCode: UInt16(kVK_ANSI_C), modifierFlags: [.command])
+    )
+    XCTAssertFalse(commandC)
+    XCTAssertEqual(copyCount, 1)
+  }
+
+  func testQuickAccessPinWindow_doubleClickRequestsClose() {
+    let window = makePinWindow()
+    defer { window.close() }
+
+    var closeCount = 0
+    window.onDoubleClickRequested = { closeCount += 1 }
+
+    XCTAssertFalse(window.handleDoubleClickIfNeeded(MockMouseUpEvent.make(clickCount: 1)))
+    XCTAssertEqual(closeCount, 0)
+
+    XCTAssertTrue(window.handleDoubleClickIfNeeded(MockMouseUpEvent.make(clickCount: 2)))
+    XCTAssertEqual(closeCount, 1)
   }
 
   func testQuickAccessPinWindow_requestMagnifyZoomDirectCall() throws {
@@ -840,6 +857,35 @@ final class QuickAccessCoreTests: XCTestCase {
       state: state
     )
   }
+}
+
+private final class MockKeyDownEvent: NSEvent {
+  private var _keyCode: UInt16 = 0
+  private var _modifierFlags: NSEvent.ModifierFlags = []
+
+  static func make(keyCode: UInt16, modifierFlags: NSEvent.ModifierFlags) -> MockKeyDownEvent {
+    let event = MockKeyDownEvent()
+    event._keyCode = keyCode
+    event._modifierFlags = modifierFlags
+    return event
+  }
+
+  override var type: NSEvent.EventType { .keyDown }
+  override var keyCode: UInt16 { _keyCode }
+  override var modifierFlags: NSEvent.ModifierFlags { _modifierFlags }
+}
+
+private final class MockMouseUpEvent: NSEvent {
+  private var _clickCount = 1
+
+  static func make(clickCount: Int) -> MockMouseUpEvent {
+    let event = MockMouseUpEvent()
+    event._clickCount = clickCount
+    return event
+  }
+
+  override var type: NSEvent.EventType { .leftMouseUp }
+  override var clickCount: Int { _clickCount }
 }
 
 @MainActor

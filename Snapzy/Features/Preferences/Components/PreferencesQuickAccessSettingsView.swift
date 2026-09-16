@@ -44,6 +44,24 @@ struct QuickAccessSettingsView: View {
               .foregroundColor(.secondary)
           }
         }
+
+        SettingRow(
+          icon: "rectangle.portrait",
+          title: L10n.PreferencesQuickAccess.pinWindowRoundedCornersTitle,
+          description: L10n.PreferencesQuickAccess.pinWindowRoundedCornersDescription
+        ) {
+          Toggle("", isOn: $manager.pinWindowRoundedCorners)
+            .labelsHidden()
+        }
+
+        SettingRow(
+          icon: "rectangle.on.rectangle",
+          title: L10n.PreferencesQuickAccess.pinWindowShadowTitle,
+          description: L10n.PreferencesQuickAccess.pinWindowShadowDescription
+        ) {
+          Toggle("", isOn: $manager.pinWindowShadowEnabled)
+            .labelsHidden()
+        }
       }
 
       Section(L10n.PreferencesQuickAccess.behaviorsSection) {

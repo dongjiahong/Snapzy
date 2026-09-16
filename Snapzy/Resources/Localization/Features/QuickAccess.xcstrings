@@ -1756,6 +1756,98 @@
         }
       }
     },
+    "preferences-quick-access.pin-window-rounded-corners-description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Round the corners of pinned screenshots. Off keeps the original capture shape."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "为钉在屏幕上的截图添加圆角。关闭后保持截图原始形状。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "為釘在螢幕上的截圖加入圓角。關閉後維持截圖原始形狀。"
+          }
+        }
+      }
+    },
+    "preferences-quick-access.pin-window-rounded-corners-title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pinned Window Rounded Corners"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "钉图圆角"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "釘圖圓角"
+          }
+        }
+      }
+    },
+    "preferences-quick-access.pin-window-shadow-description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show a drop shadow behind pinned screenshots."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在钉在屏幕上的截图后方显示阴影。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在釘在螢幕上的截圖後方顯示陰影。"
+          }
+        }
+      }
+    },
+    "preferences-quick-access.pin-window-shadow-title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pinned Window Shadow"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "钉图阴影"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "釘圖陰影"
+          }
+        }
+      }
+    },
     "preferences-quick-access.quick-actions-description": {
       "extractionState": "stale",
       "localizations": {

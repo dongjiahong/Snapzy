@@ -2314,7 +2314,27 @@ nonisolated enum L10n {
       defaultValue: "Scale & Fade",
       comment: "Quick access animation style option"
     )
-    
+    static let pinWindowRoundedCornersTitle = string(
+      "preferences-quick-access.pin-window-rounded-corners-title",
+      defaultValue: "Pinned Window Rounded Corners",
+      comment: "Quick access preferences setting title"
+    )
+    static let pinWindowRoundedCornersDescription = string(
+      "preferences-quick-access.pin-window-rounded-corners-description",
+      defaultValue: "Round the corners of pinned screenshots. Off keeps the original capture shape.",
+      comment: "Quick access preferences setting description"
+    )
+    static let pinWindowShadowTitle = string(
+      "preferences-quick-access.pin-window-shadow-title",
+      defaultValue: "Pinned Window Shadow",
+      comment: "Quick access preferences setting title"
+    )
+    static let pinWindowShadowDescription = string(
+      "preferences-quick-access.pin-window-shadow-description",
+      defaultValue: "Show a drop shadow behind pinned screenshots.",
+      comment: "Quick access preferences setting description"
+    )
+     
     static let behaviorsSection = string(
       "preferences-quick-access.section-behaviors",
       defaultValue: "Behaviors",
@@ -7386,26 +7406,6 @@ nonisolated enum L10n {
       "quick-access.edit-video",
       defaultValue: "Edit Video",
       comment: "Quick Access tooltip for opening the video editor"
-    )
-    static let lockPinnedWindow = string(
-      "quick-access.pin-window.lock",
-      defaultValue: "Lock and hide on mouse over",
-      comment: "Pinned screenshot window tooltip for enabling click-through lock mode"
-    )
-    static let unlockPinnedWindow = string(
-      "quick-access.pin-window.unlock",
-      defaultValue: "Unlock pinned window",
-      comment: "Pinned screenshot window tooltip for disabling click-through lock mode"
-    )
-    static let zoomPinnedWindow = string(
-      "quick-access.pin-window.zoom",
-      defaultValue: "Zoom pinned window",
-      comment: "Pinned screenshot window tooltip for the zoom menu"
-    )
-    static let fitPinnedWindow = string(
-      "quick-access.pin-window.fit",
-      defaultValue: "Fit",
-      comment: "Pinned screenshot window zoom menu item that returns to fitted size"
     )
   }
 

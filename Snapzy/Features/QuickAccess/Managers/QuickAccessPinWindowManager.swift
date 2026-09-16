@@ -62,6 +62,12 @@ final class QuickAccessPinWindowManager {
       controller.resumeMouseMonitors()
     }
   }
+
+  func applyAppearance(roundedCorners: Bool, shadowEnabled: Bool) {
+    for controller in controllers.values {
+      controller.applyAppearance(roundedCorners: roundedCorners, shadowEnabled: shadowEnabled)
+    }
+  }
 }
 
 @MainActor
@@ -94,12 +100,26 @@ private final class QuickAccessPinWindowController {
     let frame = QuickAccessPinWindowSizing.centeredFrame(size: state.displaySize, on: screen)
     window = QuickAccessPinWindow(contentRect: frame, state: state)
     window.contentView = hostingView(size: state.displaySize)
+    window.applyAppearance(
+      roundedCorners: QuickAccessManager.shared.pinWindowRoundedCorners,
+      shadowEnabled: QuickAccessManager.shared.pinWindowShadowEnabled
+    )
     window.onEscapeRequested = { [weak self] in
+      self?.handleUserClose()
+    }
+    window.onCopyRequested = { [weak self] in
+      self?.copyPinnedImage()
+    }
+    window.onDoubleClickRequested = { [weak self] in
       self?.handleUserClose()
     }
     window.onZoomStepRequested = { [weak self] step in
       self?.handleZoomStep(step)
     }
+  }
+
+  func applyAppearance(roundedCorners: Bool, shadowEnabled: Bool) {
+    window.applyAppearance(roundedCorners: roundedCorners, shadowEnabled: shadowEnabled)
   }
 
   func show() {
@@ -142,18 +162,7 @@ private final class QuickAccessPinWindowController {
   }
 
   private func hostingView(size: CGSize) -> QuickAccessPinHostingView {
-    let view = QuickAccessPinWindowView(
-      state: state,
-      onClose: { [weak self] in
-        self?.handleUserClose()
-      },
-      onZoomSizeChange: { [weak self] _ in
-        self?.resizeForCurrentZoom(animated: true)
-      },
-      onLockChanged: { [weak self] in
-        self?.window.updateMousePassthrough()
-      }
-    )
+    let view = QuickAccessPinWindowView(state: state)
     let hostingView = QuickAccessPinHostingView(rootView: view)
     hostingView.onMagnify = { [weak self] magnification in
       self?.window.requestMagnifyZoom(magnification: magnification)
@@ -166,6 +175,16 @@ private final class QuickAccessPinWindowController {
     QuickAccessManager.shared.setWindowOpen(id: id, isOpen: false)
     self.close()
     self.onUserClose?(self.id)
+  }
+
+  private func copyPinnedImage() {
+    ClipboardHelper.copyImage(from: state.url)
+    DiagnosticLogger.shared.log(
+      .info,
+      .clipboard,
+      "Pinned screenshot copied to clipboard",
+      context: ["fileName": state.url.lastPathComponent]
+    )
   }
 
   private func resize(to size: CGSize, animated: Bool) {

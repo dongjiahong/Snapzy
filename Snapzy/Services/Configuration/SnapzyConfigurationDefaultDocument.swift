@@ -127,6 +127,8 @@ enum SnapzyConfigurationDefaultDocument {
     writer.value("swipe_right_action", "dismiss")
     writer.value("hide_card_when_window_open", true)
     writer.value("animation_style", "slide")
+    writer.value("pin_window_rounded_corners", false)
+    writer.value("pin_window_shadow", true)
     writer.stringArray("actions_order", QuickAccessActionKind.defaultOrder.map(\.rawValue))
     writer.stringArray("enabled_actions", QuickAccessActionKind.defaultEnabledActions.map(\.rawValue).sorted())
 

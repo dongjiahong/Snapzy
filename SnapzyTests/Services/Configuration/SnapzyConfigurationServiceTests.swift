@@ -328,12 +328,16 @@ final class SnapzyConfigurationServiceTests: XCTestCase {
     let manager = QuickAccessManager.shared
     let originalHide = manager.hideCardWhenWindowOpen
     let originalStyle = manager.animationStyle
+    let originalRoundedCorners = manager.pinWindowRoundedCorners
+    let originalShadow = manager.pinWindowShadowEnabled
     let originalLeftAction = QuickAccessSwipeActionStore.shared.swipeLeftAction
     let originalRightAction = QuickAccessSwipeActionStore.shared.swipeRightAction
     let originalTrackpadMode = QuickAccessTrackpadSwipeModeStore.shared.mode
 
     manager.hideCardWhenWindowOpen = false
     manager.animationStyle = .scale
+    manager.pinWindowRoundedCorners = true
+    manager.pinWindowShadowEnabled = false
     QuickAccessSwipeActionStore.shared.setAction(.left, action: .pinToScreen)
     QuickAccessSwipeActionStore.shared.setAction(.right, action: nil)
     QuickAccessTrackpadSwipeModeStore.shared.setMode(.natural)
@@ -341,6 +345,8 @@ final class SnapzyConfigurationServiceTests: XCTestCase {
     defer {
       manager.hideCardWhenWindowOpen = originalHide
       manager.animationStyle = originalStyle
+      manager.pinWindowRoundedCorners = originalRoundedCorners
+      manager.pinWindowShadowEnabled = originalShadow
       QuickAccessSwipeActionStore.shared.setAction(.left, action: originalLeftAction)
       QuickAccessSwipeActionStore.shared.setAction(.right, action: originalRightAction)
       QuickAccessTrackpadSwipeModeStore.shared.setMode(originalTrackpadMode)
@@ -363,6 +369,8 @@ final class SnapzyConfigurationServiceTests: XCTestCase {
     XCTAssertEqual(document.value(at: "quick_access", "swipe_right_action")?.stringValue, "none")
     XCTAssertEqual(document.value(at: "quick_access", "hide_card_when_window_open")?.boolValue, false)
     XCTAssertEqual(document.value(at: "quick_access", "animation_style")?.stringValue, "scale")
+    XCTAssertEqual(document.value(at: "quick_access", "pin_window_rounded_corners")?.boolValue, true)
+    XCTAssertEqual(document.value(at: "quick_access", "pin_window_shadow")?.boolValue, false)
   }
 
   private func temporaryHomeDirectory() -> URL {

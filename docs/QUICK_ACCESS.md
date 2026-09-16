@@ -56,10 +56,10 @@ Customization: `QuickAccessActionConfigurationStore` — context-menu order (`qu
 
 ## Pin Windows
 
-- `QuickAccessPinWindowManager` + `QuickAccessPinWindow` + `QuickAccessPinWindowState` — screenshots only, always-on-top.
-- Zoom: pinch + ⌘-scroll; factor clamped between min(0.4 floor, raised to minimum-interactive-size 240×180) and max(`min(2, screenLimit)`), i.e. ≤2x; zoom preset capsule menu.
-- Lock mode: click-through except the unlock button; image fades to 0.18 on hover. Esc closes when unlocked.
-- Drag-out handle (`QuickAccessPinDragHandleView`) re-exports the current rendered image to `Captures/PinDrags/` — saved edits included even while file write is in flight.
+- `QuickAccessPinWindowManager` + `QuickAccessPinWindow` + `QuickAccessPinWindowState` — screenshots only, always-on-top, image-only chrome.
+- Default appearance is square corners with a window shadow. Settings → Quick Access can enable rounded corners (`pin_window_rounded_corners`) or disable the shadow (`pin_window_shadow`).
+- Zoom: two-finger trackpad swipe (up enlarges, down shrinks) plus pinch; factor clamped between min(0.4 floor, raised to minimum-interactive-size 240×180) and max(`min(2, screenLimit)`), i.e. ≤2x. Drag the image to move the window.
+- Ctrl+C copies the pinned image (hotkey is armed only while the pointer is over the pin). Double-click or Esc closes it.
 - Closing unpins the QA item and restarts its countdown. Transient `pinScreenshot(url:)` supports pinning arbitrary files.
 
 ## Flow In

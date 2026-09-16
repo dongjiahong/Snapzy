@@ -16,8 +16,6 @@ final class QuickAccessPinWindowState: ObservableObject {
   @Published private(set) var url: URL
   @Published private(set) var image: NSImage
   @Published private(set) var thumbnail: NSImage
-  @Published var isLocked = false
-  @Published var isMouseInside = false
   @Published private(set) var zoomFactor: CGFloat = 1
 
   private(set) var baseSize: CGSize
@@ -42,18 +40,6 @@ final class QuickAccessPinWindowState: ObservableObject {
     Int((zoomFactor * 100).rounded())
   }
 
-  var zoomMenuPercents: [Int] {
-    var percents = [50, 75, 100, 125, 150, 200].filter { percent in
-      let factor = CGFloat(percent) / 100
-      return factor >= minimumZoomFactor - 0.001 && factor <= maximumZoomFactor + 0.001
-    }
-    if !percents.contains(zoomPercent) {
-      percents.append(zoomPercent)
-      percents.sort()
-    }
-    return percents
-  }
-
   var minimumZoomFactor: CGFloat {
     guard baseSize.width > 0, baseSize.height > 0 else { return 1 }
     let interactiveSize = QuickAccessPinWindowSizing.minimumInteractiveSize
@@ -73,10 +59,6 @@ final class QuickAccessPinWindowState: ObservableObject {
 
   func setZoomPercent(_ percent: Int) -> CGSize {
     setZoomFactor(CGFloat(percent) / 100)
-  }
-
-  func resetZoom() -> CGSize {
-    setZoomFactor(1)
   }
 
   func applyZoomStep(_ step: CGFloat) -> CGSize {

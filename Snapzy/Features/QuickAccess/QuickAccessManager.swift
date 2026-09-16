@@ -79,6 +79,26 @@ final class QuickAccessManager: ObservableObject {
     }
   }
 
+  @Published var pinWindowRoundedCorners: Bool = false {
+    didSet {
+      UserDefaults.standard.set(pinWindowRoundedCorners, forKey: Keys.pinWindowRoundedCorners)
+      pinWindowManager.applyAppearance(
+        roundedCorners: pinWindowRoundedCorners,
+        shadowEnabled: pinWindowShadowEnabled
+      )
+    }
+  }
+
+  @Published var pinWindowShadowEnabled: Bool = true {
+    didSet {
+      UserDefaults.standard.set(pinWindowShadowEnabled, forKey: Keys.pinWindowShadowEnabled)
+      pinWindowManager.applyAppearance(
+        roundedCorners: pinWindowRoundedCorners,
+        shadowEnabled: pinWindowShadowEnabled
+      )
+    }
+  }
+
   @Published var autoDismissDelay: TimeInterval = 10 {
     didSet {
       UserDefaults.standard.set(autoDismissDelay, forKey: Keys.autoDismissDelay)
@@ -191,6 +211,8 @@ final class QuickAccessManager: ObservableObject {
     static let pauseCountdownOnHover = "floatingScreenshot.pauseCountdownOnHover"
     static let openEditorShortcut = "quickAccess.openEditorShortcut"
     static let openEditorShortcutEnabled = "quickAccess.openEditorShortcutEnabled"
+    static let pinWindowRoundedCorners = "quickAccess.pinWindow.roundedCorners"
+    static let pinWindowShadowEnabled = "quickAccess.pinWindow.shadowEnabled"
   }
 
   private let explicitEmptyShortcutData = Data("null".utf8)
@@ -234,6 +256,10 @@ final class QuickAccessManager: ObservableObject {
       UserDefaults.standard.object(forKey: Keys.swipeSensitivity) as? Double ?? 1.0
     pauseCountdownOnHover =
       UserDefaults.standard.object(forKey: Keys.pauseCountdownOnHover) as? Bool ?? true
+    pinWindowRoundedCorners =
+      UserDefaults.standard.object(forKey: Keys.pinWindowRoundedCorners) as? Bool ?? false
+    pinWindowShadowEnabled =
+      UserDefaults.standard.object(forKey: Keys.pinWindowShadowEnabled) as? Bool ?? true
     openEditorShortcutEnabled =
       UserDefaults.standard.object(forKey: Keys.openEditorShortcutEnabled) as? Bool ?? false
     loadOpenEditorShortcut()

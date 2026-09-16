@@ -291,6 +291,8 @@ final class SnapzyConfigurationImporterTests: XCTestCase {
     
     let originalHide = manager.hideCardWhenWindowOpen
     let originalStyle = manager.animationStyle
+    let originalRoundedCorners = manager.pinWindowRoundedCorners
+    let originalShadow = manager.pinWindowShadowEnabled
     let originalLeftAction = QuickAccessSwipeActionStore.shared.swipeLeftAction
     let originalRightAction = QuickAccessSwipeActionStore.shared.swipeRightAction
     let originalTrackpadMode = QuickAccessTrackpadSwipeModeStore.shared.mode
@@ -298,6 +300,8 @@ final class SnapzyConfigurationImporterTests: XCTestCase {
     defer {
       manager.hideCardWhenWindowOpen = originalHide
       manager.animationStyle = originalStyle
+      manager.pinWindowRoundedCorners = originalRoundedCorners
+      manager.pinWindowShadowEnabled = originalShadow
       QuickAccessSwipeActionStore.shared.setAction(.left, action: originalLeftAction)
       QuickAccessSwipeActionStore.shared.setAction(.right, action: originalRightAction)
       QuickAccessTrackpadSwipeModeStore.shared.setMode(originalTrackpadMode)
@@ -329,6 +333,8 @@ final class SnapzyConfigurationImporterTests: XCTestCase {
     swipe_right_action = "none"
     hide_card_when_window_open = false
     animation_style = "scale"
+    pin_window_rounded_corners = true
+    pin_window_shadow = false
     """
 
     let result = SnapzyConfigurationImporter.importTOML(source, defaults: defaults)
@@ -358,6 +364,8 @@ final class SnapzyConfigurationImporterTests: XCTestCase {
     XCTAssertNil(QuickAccessSwipeActionStore.shared.swipeRightAction)
     XCTAssertFalse(manager.hideCardWhenWindowOpen)
     XCTAssertEqual(manager.animationStyle, .scale)
+    XCTAssertTrue(manager.pinWindowRoundedCorners)
+    XCTAssertFalse(manager.pinWindowShadowEnabled)
   }
 
   func testImportRejectsOutOfRangeVideoEditorZoomTransitionDuration() {
