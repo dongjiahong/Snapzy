@@ -2,7 +2,7 @@
 //  QuickAccessPinWindow.swift
 //  Snapzy
 //
-//  Borderless pin window with Snipaste-style copy, dismiss, and zoom.
+//  Borderless pin window with Snipaste-style copy, annotate, dismiss, and zoom.
 //
 
 import AppKit
@@ -15,11 +15,14 @@ final class QuickAccessPinWindow: NSPanel {
   internal static let scrollZoomSensitivityCoarse: CGFloat = 0.02
   internal static let magnificationZoomSensitivity: CGFloat = 0.2
   private static let copyKeyCode = UInt16(kVK_ANSI_C)
-  private static let copyHotKeySignature = OSType(0x5A51_5043)
-  private static let copyHotKeyID = EventHotKeyID(signature: copyHotKeySignature, id: 1)
+  private static let editKeyCode = UInt16(kVK_ANSI_E)
+  private static let hotKeySignature = OSType(0x5A51_5043)
+  private static let copyHotKeyID = EventHotKeyID(signature: hotKeySignature, id: 1)
+  private static let editHotKeyID = EventHotKeyID(signature: hotKeySignature, id: 2)
 
   var onEscapeRequested: (() -> Void)?
   var onCopyRequested: (() -> Void)?
+  var onEditRequested: (() -> Void)?
   var onDoubleClickRequested: (() -> Void)?
   var onZoomStepRequested: ((CGFloat) -> Void)?
 
@@ -28,9 +31,10 @@ final class QuickAccessPinWindow: NSPanel {
   private var localKeyMonitor: Any?
   private var isMouseMonitorsSuspended = false
 
-  private static weak var activeCopyWindow: QuickAccessPinWindow?
+  private static weak var activeHotKeyWindow: QuickAccessPinWindow?
   private static var copyHotKeyRef: EventHotKeyRef?
-  private static var copyHotKeyHandler: EventHandlerRef?
+  private static var editHotKeyRef: EventHotKeyRef?
+  private static var hotKeyHandler: EventHandlerRef?
 
   init(contentRect: NSRect, state _: QuickAccessPinWindowState) {
     super.init(
@@ -66,8 +70,8 @@ final class QuickAccessPinWindow: NSPanel {
   }
 
   override func close() {
-    if Self.activeCopyWindow === self {
-      Self.setActiveCopyWindow(nil)
+    if Self.activeHotKeyWindow === self {
+      Self.setActiveHotKeyWindow(nil)
     }
     if !isMouseMonitorsSuspended {
       removeMouseMonitorsOnly()
@@ -81,17 +85,18 @@ final class QuickAccessPinWindow: NSPanel {
   }
 
   func updateMousePassthrough() {
-    let isInside = frame.contains(NSEvent.mouseLocation)
+    // A pin hidden while its screenshot is being edited must not claim ⌘E / ⌃C.
+    let isInside = isVisible && frame.contains(NSEvent.mouseLocation)
     ignoresMouseEvents = false
 
     if isInside {
-      Self.setActiveCopyWindow(self)
+      Self.setActiveHotKeyWindow(self)
       if !isKeyWindow {
         makeKey()
       }
     } else {
-      if Self.activeCopyWindow === self {
-        Self.setActiveCopyWindow(nil)
+      if Self.activeHotKeyWindow === self {
+        Self.setActiveHotKeyWindow(nil)
       }
       if isKeyWindow {
         if let otherWindow = NSApp.windows.first(where: { $0 != self && $0.canBecomeKey && $0.isVisible }) {
@@ -144,6 +149,7 @@ final class QuickAccessPinWindow: NSPanel {
       localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
         let didHandle = MainActor.assumeIsolated {
           guard let self else { return false }
+          guard self.isVisible else { return false }
           guard self.isKeyWindow || self.frame.contains(NSEvent.mouseLocation) else { return false }
           return self.handleKeyDownIfNeeded(event)
         }
@@ -180,7 +186,10 @@ final class QuickAccessPinWindow: NSPanel {
     if handleEscapeIfNeeded(event) {
       return true
     }
-    return handleCopyIfNeeded(event)
+    if handleCopyIfNeeded(event) {
+      return true
+    }
+    return handleEditIfNeeded(event)
   }
 
   @discardableResult
@@ -208,6 +217,17 @@ final class QuickAccessPinWindow: NSPanel {
 
   private func performCopy() {
     onCopyRequested?()
+  }
+
+  private func handleEditIfNeeded(_ event: NSEvent) -> Bool {
+    guard Self.isCommandE(event) else { return false }
+
+    performEdit()
+    return true
+  }
+
+  private func performEdit() {
+    onEditRequested?()
   }
 
   private func handleScrollZoomIfNeeded(_ event: NSEvent) -> Bool {
@@ -239,6 +259,16 @@ final class QuickAccessPinWindow: NSPanel {
     return event.keyCode == copyKeyCode
   }
 
+  /// Whether the event is a bare ⌘E — the pin-window-scoped "open in annotator" key.
+  static func isCommandE(_ event: NSEvent) -> Bool {
+    let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+    guard modifiers.contains(.command),
+          !modifiers.contains(.control),
+          !modifiers.contains(.option),
+          !modifiers.contains(.shift) else { return false }
+    return event.keyCode == editKeyCode
+  }
+
   static func scrollZoomStep(
     scrollingDeltaX deltaX: CGFloat = 0,
     scrollingDeltaY deltaY: CGFloat,
@@ -264,41 +294,78 @@ final class QuickAccessPinWindow: NSPanel {
     return magnification * magnificationZoomSensitivity
   }
 
-  private static func setActiveCopyWindow(_ window: QuickAccessPinWindow?) {
-    activeCopyWindow = window
+  private static func setActiveHotKeyWindow(_ window: QuickAccessPinWindow?) {
+    activeHotKeyWindow = window
     if window == nil {
-      removeCopyHotKey()
+      removeHotKeys()
     } else {
-      installCopyHotKeyIfNeeded()
+      installHotKeysIfNeeded()
     }
   }
 
-  private static func installCopyHotKeyIfNeeded() {
-    installCopyHotKeyHandlerIfNeeded()
-    guard copyHotKeyRef == nil else { return }
-
-    var ref: EventHotKeyRef?
-    let status = RegisterEventHotKey(
-      UInt32(kVK_ANSI_C),
-      UInt32(controlKey),
-      copyHotKeyID,
-      GetApplicationEventTarget(),
-      0,
-      &ref
+  /// Registers the pin window's keys (⌃C copy, ⌘E annotate) only while the pointer
+  /// is inside a pin window, so both combos stay free for other apps the rest of
+  /// the time — the pin window itself is a non-activating panel that never owns
+  /// the keyboard. Carbon consumes the keystroke, so the app underneath does not
+  /// also react to it.
+  private static func installHotKeysIfNeeded() {
+    installHotKeyHandlerIfNeeded()
+    installHotKey(
+      keyCode: UInt32(copyKeyCode),
+      modifiers: UInt32(controlKey),
+      id: copyHotKeyID,
+      ref: &copyHotKeyRef
     )
-    guard status == noErr else { return }
-    copyHotKeyRef = ref
+    installHotKey(
+      keyCode: UInt32(editKeyCode),
+      modifiers: UInt32(cmdKey),
+      id: editHotKeyID,
+      ref: &editHotKeyRef
+    )
   }
 
-  private static func removeCopyHotKey() {
+  private static func installHotKey(
+    keyCode: UInt32,
+    modifiers: UInt32,
+    id: EventHotKeyID,
+    ref: inout EventHotKeyRef?
+  ) {
+    guard ref == nil else { return }
+
+    var hotKeyRef: EventHotKeyRef?
+    let status = RegisterEventHotKey(
+      keyCode,
+      modifiers,
+      id,
+      GetApplicationEventTarget(),
+      0,
+      &hotKeyRef
+    )
+    guard status == noErr, hotKeyRef != nil else {
+      DiagnosticLogger.shared.log(
+        .warning,
+        .action,
+        "Pin window hotkey registration failed",
+        context: ["hotKeyId": "\(id.id)", "status": "\(status)"]
+      )
+      return
+    }
+    ref = hotKeyRef
+  }
+
+  private static func removeHotKeys() {
     if let copyHotKeyRef {
       UnregisterEventHotKey(copyHotKeyRef)
       self.copyHotKeyRef = nil
     }
+    if let editHotKeyRef {
+      UnregisterEventHotKey(editHotKeyRef)
+      self.editHotKeyRef = nil
+    }
   }
 
-  private static func installCopyHotKeyHandlerIfNeeded() {
-    guard copyHotKeyHandler == nil else { return }
+  private static func installHotKeyHandlerIfNeeded() {
+    guard hotKeyHandler == nil else { return }
 
     var spec = EventTypeSpec(
       eventClass: OSType(kEventClassKeyboard),
@@ -317,13 +384,19 @@ final class QuickAccessPinWindow: NSPanel {
         nil,
         &hotKeyID
       )
-      guard hotKeyID.signature == QuickAccessPinWindow.copyHotKeySignature else {
+      guard hotKeyID.signature == QuickAccessPinWindow.hotKeySignature else {
         return OSStatus(eventNotHandledErr)
       }
 
+      let pressedHotKeyId = hotKeyID.id
       DispatchQueue.main.async {
         MainActor.assumeIsolated {
-          QuickAccessPinWindow.activeCopyWindow?.performCopy()
+          guard let window = QuickAccessPinWindow.activeHotKeyWindow else { return }
+          if pressedHotKeyId == QuickAccessPinWindow.copyHotKeyID.id {
+            window.performCopy()
+          } else if pressedHotKeyId == QuickAccessPinWindow.editHotKeyID.id {
+            window.performEdit()
+          }
         }
       }
       return noErr
@@ -335,7 +408,7 @@ final class QuickAccessPinWindow: NSPanel {
       1,
       &spec,
       nil,
-      &copyHotKeyHandler
+      &hotKeyHandler
     )
   }
 }

@@ -110,8 +110,9 @@ final class AnnotateManager {
     !windowControllers.isEmpty || !manualWindowControllers.isEmpty
   }
 
-  /// Open annotation window for a quick access item
-  func openAnnotation(for item: QuickAccessItem) {
+  /// Open annotation window for a quick access item.
+  /// `onClose` fires when the window closes; its argument is whether a save was committed.
+  func openAnnotation(for item: QuickAccessItem, onClose: ((Bool) -> Void)? = nil) {
     // Check if already open for this item
     if let existing = windowControllers[item.id] {
       existing.showWindow()
@@ -145,13 +146,15 @@ final class AnnotateManager {
         forName: NSWindow.willCloseNotification,
         object: window,
         queue: .main
-      ) { [weak self] _ in
+      ) { [weak self, weak controller] _ in
         MainActor.assumeIsolated {
           self?.windowControllers.removeValue(forKey: itemId)
           self?.becomeAccessoryAppIfNeeded()
 
           // Resume Quick Access countdown
           QuickAccessManager.shared.resumeCountdownForEditingItem(itemId)
+
+          onClose?(controller?.didCommitSave ?? false)
         }
       }
     }

@@ -2893,8 +2893,12 @@ final class AnnotateState: ObservableObject {
     restoreContextAfterCropInteraction()
   }
 
+  /// True once any save committed during this editing session (survives `hasUnsavedChanges` resets).
+  private(set) var hasCommittedSave = false
+
   /// Reset unsaved changes flag after successful save
   func markAsSaved() {
+    hasCommittedSave = true
     hasUnsavedChanges = false
     isDefaultCanvasPresetAutoApplied = false
   }

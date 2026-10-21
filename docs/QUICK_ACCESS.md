@@ -60,6 +60,7 @@ Customization: `QuickAccessActionConfigurationStore` — context-menu order (`qu
 - Default appearance is square corners with a window shadow. Settings → Quick Access can enable rounded corners (`pin_window_rounded_corners`) or disable the shadow (`pin_window_shadow`).
 - Zoom: two-finger trackpad swipe (up enlarges, down shrinks) plus pinch; factor clamped between min(0.4 floor, raised to minimum-interactive-size 240×180) and max(`min(2, screenLimit)`), i.e. ≤2x. Drag the image to move the window.
 - Ctrl+C copies the pinned image (hotkey is armed only while the pointer is over the pin). Double-click or Esc closes it.
+- ⌘E opens the pinned screenshot in Annotate. The pin hides while the editor is open and reappears with the saved result once the editor closes (immediately if nothing was saved). Like Ctrl+C, the binding is registered by `QuickAccessPinWindow` only while the pointer is over a pin and unregistered the moment it leaves, so it never shadows ⌘E in other apps.
 - Closing unpins the QA item and restarts its countdown. Transient `pinScreenshot(url:)` supports pinning arbitrary files.
 
 ## Flow In

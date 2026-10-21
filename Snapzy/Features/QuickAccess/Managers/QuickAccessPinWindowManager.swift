@@ -40,6 +40,20 @@ final class QuickAccessPinWindowManager {
     controllers[item.id]?.update(item: item, imageOverride: imageOverride)
   }
 
+  /// Reload every pin showing `url` from disk. Covers edits saved by an editor that is
+  /// not linked to a Quick Access item (so no item-id based update ever reaches the pin).
+  func refresh(url: URL) {
+    let target = url.standardizedFileURL
+    for controller in controllers.values where controller.fileURL.standardizedFileURL == target {
+      controller.reloadFromDisk()
+    }
+  }
+
+  func pinnedImage(forURL url: URL) -> NSImage? {
+    let target = url.standardizedFileURL
+    return controllers.values.first { $0.fileURL.standardizedFileURL == target }?.currentImage
+  }
+
   func close(id: UUID) {
     controllers.removeValue(forKey: id)?.close()
   }
@@ -74,16 +88,19 @@ final class QuickAccessPinWindowManager {
 private final class QuickAccessPinWindowController {
   var onUserClose: ((UUID) -> Void)?
 
-  private let id: UUID
+  private var item: QuickAccessItem
   private let state: QuickAccessPinWindowState
   private let window: QuickAccessPinWindow
 
   private var targetZoomFactor: CGFloat = 1
   private var zoomTimer: Timer?
   private var zoomCenter: CGPoint?
+  private var isHiddenForEditing = false
+  private var isEditorOpen = false
+  private var revealFallbackTask: Task<Void, Never>?
 
   init(item: QuickAccessItem) {
-    id = item.id
+    self.item = item
 
     let image = Self.loadImage(for: item)
     let screen = ScreenUtility.activeScreen()
@@ -110,6 +127,9 @@ private final class QuickAccessPinWindowController {
     window.onCopyRequested = { [weak self] in
       self?.copyPinnedImage()
     }
+    window.onEditRequested = { [weak self] in
+      self?.openAnnotator()
+    }
     window.onDoubleClickRequested = { [weak self] in
       self?.handleUserClose()
     }
@@ -134,6 +154,7 @@ private final class QuickAccessPinWindowController {
 
   func update(item: QuickAccessItem, imageOverride: NSImage? = nil) {
     stopZoomAnimationLoop()
+    self.item = item
     let image = imageOverride ?? Self.loadImage(for: item)
     let screen = window.screen ?? ScreenUtility.activeScreen()
     let sizes = QuickAccessPinWindowSizing.sizes(for: image.size, on: screen)
@@ -148,8 +169,34 @@ private final class QuickAccessPinWindowController {
     resize(to: newSize, animated: false)
   }
 
+  var fileURL: URL { state.url }
+  var currentImage: NSImage { state.image }
+
+  func reloadFromDisk() {
+    let access = SandboxFileAccessManager.shared.beginAccessingURL(state.url)
+    defer { access.stop() }
+    guard let image = NSImage(contentsOf: state.url) else { return }
+
+    stopZoomAnimationLoop()
+    let screen = window.screen ?? ScreenUtility.activeScreen()
+    let sizes = QuickAccessPinWindowSizing.sizes(for: image.size, on: screen)
+    let newSize = state.update(
+      url: state.url,
+      image: image,
+      thumbnail: state.thumbnail,
+      baseSize: sizes.base,
+      maxSize: sizes.max
+    )
+    targetZoomFactor = state.zoomFactor
+    resize(to: newSize, animated: false)
+    if !isEditorOpen {
+      revealAfterEditing()
+    }
+  }
+
   func close() {
     stopZoomAnimationLoop()
+    revealFallbackTask?.cancel()
     window.close()
   }
 
@@ -172,9 +219,61 @@ private final class QuickAccessPinWindowController {
   }
 
   private func handleUserClose() {
-    QuickAccessManager.shared.setWindowOpen(id: id, isOpen: false)
+    QuickAccessManager.shared.setWindowOpen(id: item.id, isOpen: false)
     self.close()
-    self.onUserClose?(self.id)
+    self.onUserClose?(item.id)
+  }
+
+  /// ⌘E on a focused pin window: open the pinned screenshot in the annotator. The pin
+  /// steps aside while editing and comes back showing the saved result.
+  private func openAnnotator() {
+    guard !item.isVideo else { return }
+
+    if AnnotateManager.shared.isOpen(for: item.id) {
+      AnnotateManager.shared.openAnnotation(for: item)
+      return
+    }
+
+    isHiddenForEditing = true
+    isEditorOpen = true
+    window.orderOut(nil)
+    window.updateMousePassthrough()
+
+    AnnotateManager.shared.openAnnotation(for: item) { [weak self] didSave in
+      self?.handleEditorClosed(didSave: didSave)
+    }
+    DiagnosticLogger.shared.log(
+      .info,
+      .action,
+      "Pinned screenshot opened in the annotator",
+      context: ["fileName": item.url.lastPathComponent]
+    )
+  }
+
+  private func handleEditorClosed(didSave: Bool) {
+    isEditorOpen = false
+    guard isHiddenForEditing else { return }
+    guard didSave else {
+      revealAfterEditing()
+      return
+    }
+
+    // The editor writes the file after its window closes; `reloadFromDisk` reveals the
+    // pin once the new image is in. The timeout only covers saves that never write.
+    revealFallbackTask?.cancel()
+    revealFallbackTask = Task { [weak self] in
+      try? await Task.sleep(nanoseconds: 2_000_000_000)
+      guard !Task.isCancelled else { return }
+      self?.revealAfterEditing()
+    }
+  }
+
+  private func revealAfterEditing() {
+    guard isHiddenForEditing else { return }
+    isHiddenForEditing = false
+    revealFallbackTask?.cancel()
+    revealFallbackTask = nil
+    orderFront()
   }
 
   private func copyPinnedImage() {

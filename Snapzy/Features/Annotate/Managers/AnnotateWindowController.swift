@@ -44,6 +44,8 @@ final class AnnotateWindowController: NSWindowController, NSWindowDelegate {
   private let quickAccessItemId: UUID?
   private var cancellables = Set<AnyCancellable>()
 
+  var didCommitSave: Bool { state.hasCommittedSave }
+
   /// Compressed PNG data of the original source image (before annotations are baked).
   /// Captured on first open, reused across saves for session caching.
   private var originalImageData: Data?

@@ -527,6 +527,66 @@ final class QuickAccessCoreTests: XCTestCase {
     XCTAssertEqual(copyCount, 1)
   }
 
+  func testQuickAccessPinWindow_commandERequestsAnnotate() {
+    let window = makePinWindow()
+    defer { window.close() }
+
+    var editCount = 0
+    window.onEditRequested = { editCount += 1 }
+
+    let edited = window.handleKeyDownIfNeeded(
+      MockKeyDownEvent.make(keyCode: UInt16(kVK_ANSI_E), modifierFlags: [.command])
+    )
+    XCTAssertTrue(edited)
+    XCTAssertEqual(editCount, 1)
+
+    // Modified combos and other keys must fall through rather than hijack ⌘E.
+    XCTAssertFalse(
+      window.handleKeyDownIfNeeded(
+        MockKeyDownEvent.make(keyCode: UInt16(kVK_ANSI_E), modifierFlags: [.command, .shift])
+      )
+    )
+    XCTAssertFalse(
+      window.handleKeyDownIfNeeded(
+        MockKeyDownEvent.make(keyCode: UInt16(kVK_ANSI_E), modifierFlags: [.control])
+      )
+    )
+    XCTAssertFalse(
+      window.handleKeyDownIfNeeded(
+        MockKeyDownEvent.make(keyCode: UInt16(kVK_ANSI_C), modifierFlags: [.command])
+      )
+    )
+    XCTAssertEqual(editCount, 1)
+  }
+
+  func testQuickAccessPinWindowManager_refreshReloadsPinsWithoutQuickAccessItem() throws {
+    let url = FileManager.default.temporaryDirectory
+      .appendingPathComponent("pin-refresh-\(UUID().uuidString).png")
+    defer { try? FileManager.default.removeItem(at: url) }
+
+    func writePNG(width: Int, height: Int) throws {
+      let cgImage = try XCTUnwrap(TestImageFactory.solidColor(width: width, height: height))
+      let data = try XCTUnwrap(
+        NSBitmapImageRep(cgImage: cgImage).representation(using: .png, properties: [:])
+      )
+      try data.write(to: url, options: .atomic)
+    }
+
+    try writePNG(width: 300, height: 200)
+    let item = QuickAccessItem(url: url, thumbnail: NSImage(size: CGSize(width: 16, height: 16)))
+    let manager = QuickAccessPinWindowManager.shared
+    // Not closed on purpose: deallocating the controller inside XCTest aborts in the
+    // Swift runtime (same MainActor-deinit hazard as the retained stores above).
+    XCTAssertTrue(manager.show(item: item) { _ in })
+    XCTAssertEqual(manager.pinnedImage(forURL: url)?.size, CGSize(width: 300, height: 200))
+
+    // The editor saves over the pinned file; the pin has no Quick Access item to hear about it.
+    try writePNG(width: 600, height: 400)
+    manager.refresh(url: url)
+
+    XCTAssertEqual(manager.pinnedImage(forURL: url)?.size, CGSize(width: 600, height: 400))
+  }
+
   func testQuickAccessPinWindow_doubleClickRequestsClose() {
     let window = makePinWindow()
     defer { window.close() }

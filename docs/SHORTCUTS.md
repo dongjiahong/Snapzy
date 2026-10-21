@@ -102,6 +102,19 @@ Hover a Quick Access card, press the key, the card runs that action. All seven `
 - Card tooltips append the binding (`actionHelpText`), and the ⇧⌘K cheat sheet lists all seven rows.
 - Separate from `quickAccess.openEditorShortcut` ("Edit latest capture", ⌘↩, off by default), which is panel-scoped and targets the newest card regardless of hover.
 
+## Pin window shortcuts (pointer-scoped)
+
+`QuickAccessPinWindow` (`Snapzy/Features/QuickAccess/Managers/QuickAccessPinWindow.swift`). The pin window is also a `.nonactivatingPanel`, so its keys are Carbon hotkeys rather than menu equivalents:
+
+| Key | Action |
+| --- | --- |
+| ⌃C | Copy the pinned image |
+| ⌘E | Open the pinned screenshot in Annotate; the pin hides while editing and returns with the saved result |
+
+- **Delivery**: Carbon `RegisterEventHotKey` under signature `ZQPC` (`0x5A51_5043`), ids 1 (copy) and 2 (edit). Both are registered when `QuickAccessPinWindow.updateMousePassthrough` marks a window active (pointer inside) and unregistered the moment the pointer leaves — so neither combo is shadowed while the pointer is elsewhere. Escape, double-click, and scroll/pinch zoom keep their existing paths.
+- **Dispatch**: one shared handler maps the hotkey id to `performCopy` / `performEdit` on `QuickAccessPinWindow.activeHotKeyWindow` (a weak static), so a pressed key only ever affects the pin under the pointer.
+- **Registration failure is logged, not fatal** (`Pin window hotkey registration failed`), and both refs are torn down together in `removeHotKeys()`.
+
 ## Annotate editor shortcuts
 
 `AnnotateShortcutManager` (`Snapzy/Features/Annotate/Services/AnnotateShortcutManager.swift`):

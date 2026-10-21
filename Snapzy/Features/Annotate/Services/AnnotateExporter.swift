@@ -83,6 +83,7 @@ final class AnnotateExporter {
         try data.write(to: sourceURL, options: .atomic)
       }
       CaptureHistoryStore.shared.markFileChanged(at: sourceURL)
+      QuickAccessPinWindowManager.shared.refresh(url: sourceURL)
       return true
     } catch {
       DiagnosticLogger.shared.logError(.annotate, error, "Background save failed")
@@ -104,6 +105,7 @@ final class AnnotateExporter {
           try data.write(to: sourceURL, options: .atomic)
         }
         CaptureHistoryStore.shared.markFileChanged(at: sourceURL)
+        QuickAccessPinWindowManager.shared.refresh(url: sourceURL)
       }
       return true
     } catch {
