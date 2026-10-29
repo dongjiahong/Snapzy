@@ -9,35 +9,14 @@ import AppKit
 import Foundation
 
 enum QuickAccessPinWindowSizing {
-  static let minimumInteractiveSize = CGSize(width: 240, height: 180)
+  /// Smallest edge a pin may be shrunk to, so it stays grabbable.
+  static let minimumInteractiveEdge: CGFloat = 48
 
-  private static let absoluteMaxSize = CGSize(width: 1440, height: 920)
-  private static let screenMaxRatio: CGFloat = 0.78
   private static let screenMargin: CGFloat = 24
 
-  static func sizes(for imageSize: CGSize, on screen: NSScreen) -> (base: CGSize, max: CGSize) {
-    sizes(for: imageSize, visibleSize: screen.visibleFrame.size)
-  }
-
-  static func sizes(for imageSize: CGSize, visibleSize: CGSize) -> (base: CGSize, max: CGSize) {
-    let sourceSize = CGSize(width: max(imageSize.width, 1), height: max(imageSize.height, 1))
-    let maxSize = CGSize(
-      width: min(absoluteMaxSize.width, visibleSize.width * screenMaxRatio),
-      height: min(absoluteMaxSize.height, visibleSize.height * screenMaxRatio)
-    )
-    let maxFitScale = min(maxSize.width / sourceSize.width, maxSize.height / sourceSize.height)
-    let minFitScale = max(
-      minimumInteractiveSize.width / sourceSize.width,
-      minimumInteractiveSize.height / sourceSize.height
-    )
-    let preferredScale = max(1, minFitScale)
-    let normalizedScale = min(preferredScale, maxFitScale)
-    let fittedSize = CGSize(width: sourceSize.width * normalizedScale, height: sourceSize.height * normalizedScale)
-    let baseSize = CGSize(
-      width: min(max(fittedSize.width, minimumInteractiveSize.width), maxSize.width),
-      height: min(max(fittedSize.height, minimumInteractiveSize.height), maxSize.height)
-    )
-    return (baseSize, maxSize)
+  /// A pin opens at the captured image's point size (1:1 with the original selection).
+  static func baseSize(for imageSize: CGSize) -> CGSize {
+    CGSize(width: max(imageSize.width, 1), height: max(imageSize.height, 1))
   }
 
   static func centeredFrame(size: CGSize, on screen: NSScreen) -> NSRect {
@@ -56,13 +35,14 @@ enum QuickAccessPinWindowSizing {
 
   static func constrainedFrame(_ frame: NSRect, visibleFrame: NSRect) -> NSRect {
     let bounds = visibleFrame.insetBy(dx: screenMargin, dy: screenMargin)
-    let width = min(frame.width, max(bounds.width, 1))
-    let height = min(frame.height, max(bounds.height, 1))
-    return NSRect(
-      x: min(max(frame.minX, bounds.minX), bounds.maxX - width),
-      y: min(max(frame.minY, bounds.minY), bounds.maxY - height),
-      width: width,
-      height: height
-    )
+    // Never shrink the frame: a pin may be larger than the screen. Only keep it on-screen
+    // along axes where it fits.
+    let x = frame.width <= bounds.width
+      ? min(max(frame.minX, bounds.minX), bounds.maxX - frame.width)
+      : frame.minX
+    let y = frame.height <= bounds.height
+      ? min(max(frame.minY, bounds.minY), bounds.maxY - frame.height)
+      : frame.minY
+    return NSRect(x: x, y: y, width: frame.width, height: frame.height)
   }
 }

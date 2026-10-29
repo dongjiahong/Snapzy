@@ -19,17 +19,17 @@ final class QuickAccessPinWindowState: ObservableObject {
   @Published private(set) var zoomFactor: CGFloat = 1
 
   private(set) var baseSize: CGSize
-  private(set) var maxSize: CGSize
 
-  private let absoluteMinimumZoomFactor: CGFloat = 0.4
+  private let absoluteMinimumZoomFactor: CGFloat = 0.1
+  // Safety bound only; the pin is not limited to the screen size.
+  private let absoluteMaximumZoomFactor: CGFloat = 20
 
-  init(id: UUID, url: URL, image: NSImage, thumbnail: NSImage, baseSize: CGSize, maxSize: CGSize) {
+  init(id: UUID, url: URL, image: NSImage, thumbnail: NSImage, baseSize: CGSize) {
     self.id = id
     self.url = url
     self.image = image
     self.thumbnail = thumbnail
     self.baseSize = baseSize
-    self.maxSize = maxSize
   }
 
   var displaySize: CGSize {
@@ -42,19 +42,13 @@ final class QuickAccessPinWindowState: ObservableObject {
 
   var minimumZoomFactor: CGFloat {
     guard baseSize.width > 0, baseSize.height > 0 else { return 1 }
-    let interactiveSize = QuickAccessPinWindowSizing.minimumInteractiveSize
-    let interactiveFloor = max(
-      interactiveSize.width / baseSize.width,
-      interactiveSize.height / baseSize.height
-    )
+    let interactiveFloor = QuickAccessPinWindowSizing.minimumInteractiveEdge / min(baseSize.width, baseSize.height)
     let floor = max(absoluteMinimumZoomFactor, interactiveFloor)
-    return min(floor, maximumZoomFactor)
+    return min(floor, 1)
   }
 
   var maximumZoomFactor: CGFloat {
-    guard baseSize.width > 0, baseSize.height > 0 else { return 1 }
-    let screenLimit = min(maxSize.width / baseSize.width, maxSize.height / baseSize.height)
-    return max(1, min(2, screenLimit))
+    absoluteMaximumZoomFactor
   }
 
   func setZoomPercent(_ percent: Int) -> CGSize {
@@ -66,16 +60,15 @@ final class QuickAccessPinWindowState: ObservableObject {
     return setZoomFactor(zoomFactor + step)
   }
 
-  func update(url: URL, image: NSImage, thumbnail: NSImage, baseSize: CGSize, maxSize: CGSize) -> CGSize {
+  func update(url: URL, image: NSImage, thumbnail: NSImage, baseSize: CGSize) -> CGSize {
     self.url = url
     self.image = image
     self.thumbnail = thumbnail
-    return updateSizing(baseSize: baseSize, maxSize: maxSize)
+    return updateSizing(baseSize: baseSize)
   }
 
-  func updateSizing(baseSize: CGSize, maxSize: CGSize) -> CGSize {
+  func updateSizing(baseSize: CGSize) -> CGSize {
     self.baseSize = baseSize
-    self.maxSize = maxSize
     zoomFactor = clampedZoomFactor(zoomFactor)
     return displaySize
   }

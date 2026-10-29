@@ -104,14 +104,12 @@ private final class QuickAccessPinWindowController {
 
     let image = Self.loadImage(for: item)
     let screen = ScreenUtility.activeScreen()
-    let sizes = QuickAccessPinWindowSizing.sizes(for: image.size, on: screen)
     state = QuickAccessPinWindowState(
       id: item.id,
       url: item.url,
       image: image,
       thumbnail: item.thumbnail,
-      baseSize: sizes.base,
-      maxSize: sizes.max
+      baseSize: QuickAccessPinWindowSizing.baseSize(for: image.size)
     )
 
     let frame = QuickAccessPinWindowSizing.centeredFrame(size: state.displaySize, on: screen)
@@ -156,14 +154,11 @@ private final class QuickAccessPinWindowController {
     stopZoomAnimationLoop()
     self.item = item
     let image = imageOverride ?? Self.loadImage(for: item)
-    let screen = window.screen ?? ScreenUtility.activeScreen()
-    let sizes = QuickAccessPinWindowSizing.sizes(for: image.size, on: screen)
     let newSize = state.update(
       url: item.url,
       image: image,
       thumbnail: item.thumbnail,
-      baseSize: sizes.base,
-      maxSize: sizes.max
+      baseSize: QuickAccessPinWindowSizing.baseSize(for: image.size)
     )
     targetZoomFactor = state.zoomFactor
     resize(to: newSize, animated: false)
@@ -178,14 +173,11 @@ private final class QuickAccessPinWindowController {
     guard let image = NSImage(contentsOf: state.url) else { return }
 
     stopZoomAnimationLoop()
-    let screen = window.screen ?? ScreenUtility.activeScreen()
-    let sizes = QuickAccessPinWindowSizing.sizes(for: image.size, on: screen)
     let newSize = state.update(
       url: state.url,
       image: image,
       thumbnail: state.thumbnail,
-      baseSize: sizes.base,
-      maxSize: sizes.max
+      baseSize: QuickAccessPinWindowSizing.baseSize(for: image.size)
     )
     targetZoomFactor = state.zoomFactor
     resize(to: newSize, animated: false)
@@ -308,7 +300,6 @@ private final class QuickAccessPinWindowController {
       let currentFrame = window.frame
       zoomCenter = CGPoint(x: currentFrame.midX, y: currentFrame.midY)
     }
-    syncSizingForCurrentScreen()
     let newTarget = targetZoomFactor + step
     targetZoomFactor = state.clampedZoomFactor(newTarget)
     startZoomAnimationLoop()
@@ -345,14 +336,7 @@ private final class QuickAccessPinWindowController {
   private func resizeForCurrentZoom(animated: Bool) {
     stopZoomAnimationLoop()
     targetZoomFactor = state.zoomFactor
-    syncSizingForCurrentScreen()
     resize(to: state.displaySize, animated: animated)
-  }
-
-  private func syncSizingForCurrentScreen() {
-    let screen = window.screen ?? ScreenUtility.activeScreen()
-    let sizes = QuickAccessPinWindowSizing.sizes(for: state.image.size, on: screen)
-    _ = state.updateSizing(baseSize: sizes.base, maxSize: sizes.max)
   }
 
   private static func loadImage(for item: QuickAccessItem) -> NSImage {

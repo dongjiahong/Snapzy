@@ -263,48 +263,24 @@ final class QuickAccessCoreTests: XCTestCase {
     XCTAssertNotEqual(base, pinned)
   }
 
-  func testQuickAccessPinWindowSizing_enforcesMinimumInteractiveSizeForTinyImages() {
-    let sizes = QuickAccessPinWindowSizing.sizes(
-      for: CGSize(width: 24, height: 16),
-      visibleSize: CGSize(width: 1440, height: 900)
-    )
-    let minimumSize = QuickAccessPinWindowSizing.minimumInteractiveSize
+  func testQuickAccessPinWindowSizing_baseSizeMatchesCapturedImage() {
+    let large = QuickAccessPinWindowSizing.baseSize(for: CGSize(width: 3000, height: 2000))
+    XCTAssertEqual(large.width, 3000, accuracy: 0.001)
+    XCTAssertEqual(large.height, 2000, accuracy: 0.001)
 
-    XCTAssertGreaterThanOrEqual(sizes.base.width, minimumSize.width)
-    XCTAssertGreaterThanOrEqual(sizes.base.height, minimumSize.height)
-    XCTAssertLessThanOrEqual(sizes.base.width, sizes.max.width)
-    XCTAssertLessThanOrEqual(sizes.base.height, sizes.max.height)
+    let tiny = QuickAccessPinWindowSizing.baseSize(for: CGSize(width: 24, height: 16))
+    XCTAssertEqual(tiny.width, 24, accuracy: 0.001)
+    XCTAssertEqual(tiny.height, 16, accuracy: 0.001)
   }
 
-  func testQuickAccessPinWindowState_clampsZoomToInteractiveMinimum() {
-    let minimumSize = QuickAccessPinWindowSizing.minimumInteractiveSize
-    let image = NSImage(size: CGSize(width: 24, height: 16))
-    let state = QuickAccessPinWindowState(
-      id: UUID(),
-      url: URL(fileURLWithPath: "/tmp/tiny.png"),
-      image: image,
-      thumbnail: image,
-      baseSize: minimumSize,
-      maxSize: CGSize(width: 1200, height: 900)
-    )
-    Self.retainedPinWindowStates.append(state)
-
-    let displaySize = state.setZoomPercent(50)
-
-    XCTAssertEqual(displaySize.width, minimumSize.width, accuracy: 0.001)
-    XCTAssertEqual(displaySize.height, minimumSize.height, accuracy: 0.001)
-    XCTAssertEqual(state.zoomPercent, 100)
-  }
-
-  func testQuickAccessPinWindowState_appliesContinuousZoomStepsWithinBounds() {
+  func testQuickAccessPinWindowState_allowsZoomingBeyondScreenSize() {
     let image = NSImage(size: CGSize(width: 400, height: 300))
     let state = QuickAccessPinWindowState(
       id: UUID(),
       url: URL(fileURLWithPath: "/tmp/pinned.png"),
       image: image,
       thumbnail: image,
-      baseSize: CGSize(width: 400, height: 300),
-      maxSize: CGSize(width: 800, height: 600)
+      baseSize: CGSize(width: 400, height: 300)
     )
     Self.retainedPinWindowStates.append(state)
 
@@ -314,43 +290,47 @@ final class QuickAccessCoreTests: XCTestCase {
     XCTAssertEqual(displaySize.width, 540, accuracy: 0.001)
     XCTAssertEqual(displaySize.height, 405, accuracy: 0.001)
 
-    displaySize = state.applyZoomStep(10)
+    displaySize = state.applyZoomStep(4)
 
-    XCTAssertEqual(state.zoomPercent, 200)
-    XCTAssertEqual(displaySize.width, 800, accuracy: 0.001)
-    XCTAssertEqual(displaySize.height, 600, accuracy: 0.001)
-
-    displaySize = state.applyZoomStep(-10)
-
-    XCTAssertEqual(state.zoomPercent, 60)
-    XCTAssertEqual(displaySize.width, 240, accuracy: 0.001)
-    XCTAssertEqual(displaySize.height, 180, accuracy: 0.001)
+    XCTAssertEqual(state.zoomPercent, 535)
+    XCTAssertEqual(displaySize.width, 2140, accuracy: 0.001)
+    XCTAssertEqual(displaySize.height, 1605, accuracy: 0.001)
   }
 
-  func testQuickAccessPinWindowState_reclampsWhenScreenSizingShrinks() {
+  func testQuickAccessPinWindowState_shrinkStopsAtInteractiveEdge() {
     let image = NSImage(size: CGSize(width: 400, height: 300))
     let state = QuickAccessPinWindowState(
       id: UUID(),
       url: URL(fileURLWithPath: "/tmp/pinned.png"),
       image: image,
       thumbnail: image,
-      baseSize: CGSize(width: 400, height: 300),
-      maxSize: CGSize(width: 800, height: 600)
+      baseSize: CGSize(width: 400, height: 300)
     )
     Self.retainedPinWindowStates.append(state)
 
-    _ = state.applyZoomStep(1)
-    let displaySize = state.updateSizing(
-      baseSize: CGSize(width: 300, height: 225),
-      maxSize: CGSize(width: 300, height: 225)
-    )
+    let displaySize = state.applyZoomStep(-10)
 
-    XCTAssertEqual(state.zoomPercent, 100)
-    XCTAssertEqual(displaySize.width, 300, accuracy: 0.001)
-    XCTAssertEqual(displaySize.height, 225, accuracy: 0.001)
+    XCTAssertEqual(displaySize.height, QuickAccessPinWindowSizing.minimumInteractiveEdge, accuracy: 0.001)
   }
 
-  func testQuickAccessPinWindowSizing_constrainedFrameClampsOversizedWindows() {
+  func testQuickAccessPinWindowState_tinyImageDoesNotUpscaleWhenShrinking() {
+    let image = NSImage(size: CGSize(width: 24, height: 16))
+    let state = QuickAccessPinWindowState(
+      id: UUID(),
+      url: URL(fileURLWithPath: "/tmp/tiny.png"),
+      image: image,
+      thumbnail: image,
+      baseSize: CGSize(width: 24, height: 16)
+    )
+    Self.retainedPinWindowStates.append(state)
+
+    let displaySize = state.setZoomPercent(50)
+
+    XCTAssertEqual(state.zoomPercent, 100)
+    XCTAssertEqual(displaySize.width, 24, accuracy: 0.001)
+  }
+
+  func testQuickAccessPinWindowSizing_constrainedFrameKeepsOversizedWindowSize() {
     let frame = NSRect(x: 100, y: 100, width: 900, height: 700)
     let visibleFrame = NSRect(x: 0, y: 0, width: 800, height: 600)
 
@@ -359,10 +339,21 @@ final class QuickAccessCoreTests: XCTestCase {
       visibleFrame: visibleFrame
     )
 
+    XCTAssertEqual(constrainedFrame.width, 900, accuracy: 0.001)
+    XCTAssertEqual(constrainedFrame.height, 700, accuracy: 0.001)
+  }
+
+  func testQuickAccessPinWindowSizing_constrainedFrameKeepsFittingWindowOnScreen() {
+    let frame = NSRect(x: -50, y: 580, width: 200, height: 100)
+    let visibleFrame = NSRect(x: 0, y: 0, width: 800, height: 600)
+
+    let constrainedFrame = QuickAccessPinWindowSizing.constrainedFrame(
+      frame,
+      visibleFrame: visibleFrame
+    )
+
     XCTAssertEqual(constrainedFrame.minX, 24, accuracy: 0.001)
-    XCTAssertEqual(constrainedFrame.minY, 24, accuracy: 0.001)
-    XCTAssertEqual(constrainedFrame.width, 752, accuracy: 0.001)
-    XCTAssertEqual(constrainedFrame.height, 552, accuracy: 0.001)
+    XCTAssertEqual(constrainedFrame.maxY, 576, accuracy: 0.001)
   }
 
   func testQuickAccessPinWindow_scrollZoomStepIgnoresInvalidDeltas() throws {
@@ -421,8 +412,7 @@ final class QuickAccessCoreTests: XCTestCase {
       url: URL(fileURLWithPath: "/tmp/pinned.png"),
       image: image,
       thumbnail: image,
-      baseSize: CGSize(width: 320, height: 220),
-      maxSize: CGSize(width: 1200, height: 900)
+      baseSize: CGSize(width: 320, height: 220)
     )
     Self.retainedPinWindowStates.append(state)
 
@@ -450,8 +440,7 @@ final class QuickAccessCoreTests: XCTestCase {
       url: URL(fileURLWithPath: "/tmp/pinned.png"),
       image: image,
       thumbnail: image,
-      baseSize: CGSize(width: 320, height: 220),
-      maxSize: CGSize(width: 1200, height: 900)
+      baseSize: CGSize(width: 320, height: 220)
     )
     Self.retainedPinWindowStates.append(state)
 
@@ -608,8 +597,7 @@ final class QuickAccessCoreTests: XCTestCase {
       url: URL(fileURLWithPath: "/tmp/pinned.png"),
       image: image,
       thumbnail: image,
-      baseSize: CGSize(width: 320, height: 220),
-      maxSize: CGSize(width: 1200, height: 900)
+      baseSize: CGSize(width: 320, height: 220)
     )
     Self.retainedPinWindowStates.append(state)
 
@@ -635,8 +623,7 @@ final class QuickAccessCoreTests: XCTestCase {
       url: URL(fileURLWithPath: "/tmp/pinned.png"),
       image: image,
       thumbnail: image,
-      baseSize: CGSize(width: 320, height: 220),
-      maxSize: CGSize(width: 1200, height: 900)
+      baseSize: CGSize(width: 320, height: 220)
     )
     Self.retainedPinWindowStates.append(state)
 
@@ -907,8 +894,7 @@ final class QuickAccessCoreTests: XCTestCase {
       url: URL(fileURLWithPath: "/tmp/pinned.png"),
       image: image,
       thumbnail: image,
-      baseSize: CGSize(width: 320, height: 220),
-      maxSize: CGSize(width: 1200, height: 900)
+      baseSize: CGSize(width: 320, height: 220)
     )
     Self.retainedPinWindowStates.append(state)
 
