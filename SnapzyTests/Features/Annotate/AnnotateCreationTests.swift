@@ -108,6 +108,73 @@ final class AnnotateCreationTests: XCTestCase {
   }
 
   @MainActor
+  func testNextCounterValueTracksEachSequenceStyleIndependently() {
+    let state = makeAnnotateState()
+    state.annotations = [
+      AnnotationItem(
+        type: .counter(6),
+        bounds: .zero,
+        properties: AnnotationProperties(counterSequenceStyle: .number)
+      ),
+      AnnotationItem(
+        type: .counter(2),
+        bounds: .zero,
+        properties: AnnotationProperties(counterSequenceStyle: .letter)
+      ),
+    ]
+
+    XCTAssertEqual(state.nextCounterValue(for: .number), 7)
+    XCTAssertEqual(state.nextCounterValue(for: .letter), 3)
+  }
+
+  @MainActor
+  func testCounterSequenceLabelsStayInsideTheirRange() {
+    XCTAssertEqual(CounterSequenceStyle.number.label(for: 7), "7")
+    XCTAssertEqual(CounterSequenceStyle.number.label(for: 120), "99")
+    XCTAssertEqual(CounterSequenceStyle.letter.label(for: 1), "A")
+    XCTAssertEqual(CounterSequenceStyle.letter.label(for: 26), "Z")
+    XCTAssertEqual(CounterSequenceStyle.letter.label(for: 30), "Z")
+    XCTAssertEqual(CounterSequenceStyle.letter.maxValue, 26)
+    XCTAssertEqual(CounterSequenceStyle.number.maxValue, 99)
+  }
+
+  @MainActor
+  func testCounterSequenceControlIsAvailableWhileCounterToolIsActive() {
+    let state = AnnotateState(defaults: UserDefaultsFactory.make())
+    Self.retainedAnnotateStates.append(state)
+
+    state.selectedTool = .counter
+    XCTAssertTrue(state.quickPropertiesSupportsCounterSequence)
+    XCTAssertEqual(state.quickCounterSequenceBinding.wrappedValue, .number)
+
+    state.setActiveCounterSequenceStyle(.letter)
+    XCTAssertEqual(state.quickCounterSequenceBinding.wrappedValue, .letter)
+
+    let first = AnnotationItem(
+      type: .counter(1),
+      bounds: CGRect(x: 20, y: 20, width: 24, height: 24),
+      properties: AnnotationProperties(counterSequenceStyle: .number)
+    )
+    let second = AnnotationItem(
+      type: .counter(2),
+      bounds: CGRect(x: 60, y: 20, width: 24, height: 24),
+      properties: AnnotationProperties(counterSequenceStyle: .number)
+    )
+    state.annotations = [first, second]
+    state.setSelectedAnnotationIds([second.id])
+
+    XCTAssertTrue(state.quickPropertiesSupportsCounterSequence)
+    state.setActiveCounterSequenceStyle(.letter)
+
+    // Switching the picker only affects new counters. Existing numbers stay
+    // numbers, and the letter sequence starts from A instead of continuing at C.
+    XCTAssertEqual(state.annotations.first?.properties.counterSequenceStyle, .number)
+    XCTAssertEqual(state.annotations.last?.properties.counterSequenceStyle, .number)
+    XCTAssertEqual(state.nextCounterValue(for: .number), 3)
+    XCTAssertEqual(state.nextCounterValue(for: .letter), 1)
+  }
+
+  @MainActor
   func testCanExtractTextRequiresNormalAnnotateSourceImage() {
     let state = AnnotateState(
       image: NSImage(size: CGSize(width: 120, height: 80)),

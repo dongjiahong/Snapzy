@@ -100,7 +100,12 @@ nonisolated struct AnnotationRenderer {
       )
 
     case .counter(let value):
-      drawCounter(value: value, in: annotation.bounds, properties: annotation.properties)
+      drawCounter(
+        value: value,
+        style: annotation.properties.counterSequenceStyle,
+        in: annotation.bounds,
+        properties: annotation.properties
+      )
 
     case .blur(let blurType):
       drawBlur(
@@ -418,7 +423,12 @@ nonisolated struct AnnotationRenderer {
     }
   }
 
-  private func drawCounter(value: Int, in bounds: CGRect, properties: AnnotationProperties) {
+  private func drawCounter(
+    value: Int,
+    style: CounterSequenceStyle,
+    in bounds: CGRect,
+    properties: AnnotationProperties
+  ) {
     let rect: CGRect
     if bounds.standardized.isEmpty {
       let size = AnnotationProperties.counterDiameter(for: properties.strokeWidth)
@@ -435,7 +445,7 @@ nonisolated struct AnnotationRenderer {
       .font: NSFont.systemFont(ofSize: fontSize, weight: .bold),
       .foregroundColor: NSColor.white,
     ]
-    let text = "\(value)" as NSString
+    let text = style.label(for: value) as NSString
     let textSize = text.size(withAttributes: attributes)
     let textPoint = CGPoint(
       x: rect.midX - textSize.width / 2,

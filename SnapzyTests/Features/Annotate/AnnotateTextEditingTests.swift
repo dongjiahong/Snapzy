@@ -186,6 +186,63 @@ final class AnnotateTextEditingTests: XCTestCase {
     XCTAssertEqual(updated.bounds.width, 180, accuracy: 0.5)
   }
 
+  func testTextGrowthLiftsTheBoxInsteadOfClippingTheLastLine() throws {
+    let state = makeAnnotateState()
+    state.sourceImage = NSImage(size: CGSize(width: 400, height: 240))
+    let annotation = AnnotationItem(
+      type: .text(""),
+      bounds: CGRect(x: 20, y: 24, width: 30, height: 32),
+      properties: AnnotationProperties(fontSize: 24)
+    )
+    state.annotations = [annotation]
+    state.useAutomaticTextWidth(for: annotation.id)
+
+    let text = "第一行文字内容\n第二行文字内容\n第三行文字内容"
+    state.updateAnnotationText(id: annotation.id, text: text)
+
+    let updated = try XCTUnwrap(state.annotations.first)
+    let fullHeight = AnnotateTextLayout.bounds(
+      text: text,
+      font: AnnotateTextLayout.font(size: updated.properties.fontSize),
+      origin: .zero,
+      constrainedWidth: updated.bounds.width,
+      presentation: updated.properties.textPresentation
+    ).height
+
+    // The box must fit all three lines, not be capped at the canvas bottom.
+    XCTAssertEqual(updated.bounds.height, fullHeight, accuracy: 0.5)
+    XCTAssertGreaterThanOrEqual(updated.bounds.minY, state.activeAnnotationBounds.minY - 0.5)
+    XCTAssertLessThanOrEqual(updated.bounds.maxY, state.activeAnnotationBounds.maxY + 0.5)
+  }
+
+  func testManualTextResizeReflowsHeightInsteadOfClipping() throws {
+    let state = makeAnnotateState()
+    state.sourceImage = NSImage(size: CGSize(width: 600, height: 300))
+    let text = "A text that has to wrap once the box gets narrower"
+    let annotation = AnnotationItem(
+      type: .text(text),
+      bounds: CGRect(x: 20, y: 200, width: 300, height: 32),
+      properties: AnnotationProperties(fontSize: 18)
+    )
+    state.annotations = [annotation]
+
+    state.updateAnnotationBounds(
+      id: annotation.id,
+      bounds: CGRect(x: 20, y: 200, width: 120, height: 32)
+    )
+
+    let updated = try XCTUnwrap(state.annotations.first)
+    let fullHeight = AnnotateTextLayout.bounds(
+      text: text,
+      font: AnnotateTextLayout.font(size: updated.properties.fontSize),
+      origin: .zero,
+      constrainedWidth: updated.bounds.width,
+      presentation: updated.properties.textPresentation
+    ).height
+    XCTAssertEqual(updated.bounds.width, 120, accuracy: 0.5)
+    XCTAssertEqual(updated.bounds.height, fullHeight, accuracy: 0.5)
+  }
+
   func testTextPresentationKeepsTextColorAndRetainsBackgroundChoice() throws {
     let state = makeAnnotateState()
     let annotation = AnnotationItem(

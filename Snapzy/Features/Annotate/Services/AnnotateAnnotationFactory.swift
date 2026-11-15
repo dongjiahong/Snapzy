@@ -30,20 +30,21 @@ enum AnnotationFactory {
     path: [CGPoint],
     state: AnnotateState
   ) -> AnnotationItem? {
-    createAnnotation(
+    let properties = state.annotationCreationProperties(for: tool)
+    return createAnnotation(
       tool: tool,
       from: start,
       to: end,
       path: path,
       context: CreationContext(
-        properties: state.annotationCreationProperties(for: tool),
+        properties: properties,
         arrowStyle: state.arrowStyle,
         arrowType: state.arrowType,
         arrowBendDirection: state.arrowBendDirection,
         arrowStartHead: state.arrowStartHead,
         arrowEndHead: state.arrowEndHead,
         blurType: state.blurType,
-        counterValue: state.nextCounterValue(),
+        counterValue: state.nextCounterValue(for: properties.counterSequenceStyle),
         watermarkText: state.watermarkText,
         activeAnnotationBounds: state.activeAnnotationBounds
       )

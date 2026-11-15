@@ -282,7 +282,7 @@ final class QuickAccessManager: ObservableObject {
 
   /// Add a new screenshot to the quick access stack
   @discardableResult
-  func addScreenshot(url: URL) async -> QuickAccessItem? {
+  func addScreenshot(url: URL, captureScreenRect: CGRect? = nil) async -> QuickAccessItem? {
     guard isEnabled else {
       DiagnosticLogger.shared.log(
         .debug,
@@ -314,7 +314,7 @@ final class QuickAccessManager: ObservableObject {
       needsRetry = true
     }
 
-    let item = QuickAccessItem(url: url, thumbnail: thumbnail)
+    let item = QuickAccessItem(url: url, thumbnail: thumbnail, captureScreenRect: captureScreenRect)
 
     // Animate insertion explicitly — no implicit .animation on the stack
     withAnimation(QuickAccessAnimations.cardInsert) {
@@ -660,7 +660,7 @@ final class QuickAccessManager: ObservableObject {
 
   /// Pin a saved screenshot URL, creating a transient pin window if no Quick Access item owns it.
   @discardableResult
-  func pinScreenshot(url: URL) async -> QuickAccessItem? {
+  func pinScreenshot(url: URL, captureScreenRect: CGRect? = nil) async -> QuickAccessItem? {
     if let existingItem = item(matching: url) {
       pinScreenshot(id: existingItem.id)
       return item(matching: url) ?? existingItem
@@ -681,7 +681,7 @@ final class QuickAccessManager: ObservableObject {
 
     let result = await ThumbnailGenerator.generate(from: url)
     let thumbnail = result.thumbnail ?? ThumbnailGenerator.placeholderThumbnail()
-    let item = QuickAccessItem(url: url, thumbnail: thumbnail)
+    let item = QuickAccessItem(url: url, thumbnail: thumbnail, captureScreenRect: captureScreenRect)
     let didShowWindow = pinWindowManager.show(item: item) { closedId in
       DiagnosticLogger.shared.log(
         .debug,
@@ -831,7 +831,8 @@ final class QuickAccessManager: ObservableObject {
       cloudURL: existing.cloudURL,
       cloudKey: existing.cloudKey,
       isCloudStale: existing.isCloudStale,
-      isPinned: existing.isPinned
+      isPinned: existing.isPinned,
+      captureScreenRect: existing.captureScreenRect
     )
     pinWindowManager.update(item: items[index])
     DiagnosticLogger.shared.log(
@@ -860,7 +861,8 @@ final class QuickAccessManager: ObservableObject {
       cloudURL: existing.cloudURL,
       cloudKey: existing.cloudKey,
       isCloudStale: existing.isCloudStale,
-      isPinned: existing.isPinned
+      isPinned: existing.isPinned,
+      captureScreenRect: existing.captureScreenRect
     )
     pinWindowManager.update(item: items[index], imageOverride: image)
     logger.info("Thumbnail updated directly for item \(id)")
@@ -888,7 +890,8 @@ final class QuickAccessManager: ObservableObject {
       cloudURL: existing.cloudURL,
       cloudKey: existing.cloudKey,
       isCloudStale: existing.isCloudStale,
-      isPinned: existing.isPinned
+      isPinned: existing.isPinned,
+      captureScreenRect: existing.captureScreenRect
     )
     if let fullResImage {
       pinWindowManager.update(item: items[index], imageOverride: fullResImage)
@@ -1010,7 +1013,8 @@ final class QuickAccessManager: ObservableObject {
       cloudURL: existing.cloudURL,
       cloudKey: existing.cloudKey,
       isCloudStale: existing.isCloudStale,
-      isPinned: existing.isPinned
+      isPinned: existing.isPinned,
+      captureScreenRect: existing.captureScreenRect
     )
     pinWindowManager.update(item: items[freshIndex])
     logger.info("Thumbnail refreshed for \(url.lastPathComponent)")
@@ -1674,7 +1678,8 @@ final class QuickAccessManager: ObservableObject {
           duration: existing.duration,
           cloudURL: existing.cloudURL,
           cloudKey: existing.cloudKey,
-          isCloudStale: existing.isCloudStale
+          isCloudStale: existing.isCloudStale,
+          captureScreenRect: existing.captureScreenRect
         )
         logger.info("Thumbnail retry succeeded for \(url.lastPathComponent)")
         DiagnosticLogger.shared.log(

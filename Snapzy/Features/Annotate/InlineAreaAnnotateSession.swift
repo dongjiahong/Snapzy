@@ -431,6 +431,7 @@ final class InlineAreaAnnotateSession: ObservableObject {
       self.selectionRect = crop.localRect
       state.replaceSourceImagePreservingAnnotations(crop.image)
     }
+    let pinScreenRect = selectionRect.map { screenRect(for: $0) }
 
     guard let renderedImage = AnnotateExporter.renderFinalImage(state: state),
           let cgImage = AnnotateExporter.bestCGImage(from: renderedImage) else {
@@ -455,7 +456,11 @@ final class InlineAreaAnnotateSession: ObservableObject {
     }
     complete(result)
     if pinToScreen, case .success(let url) = result {
-      await PostCaptureActionHandler.shared.handleScreenshotCapture(url: url, pinToScreen: true)
+      await PostCaptureActionHandler.shared.handleScreenshotCapture(
+        url: url,
+        pinToScreen: true,
+        captureScreenRect: pinScreenRect
+      )
     }
   }
 

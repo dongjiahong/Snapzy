@@ -175,6 +175,7 @@ struct AnnotateQuickPropertiesBar: View {
     let showWatermark = state.quickPropertiesSupportsWatermark
     let showBlurType = state.quickPropertiesSupportsBlurType
     let showStrokeWidth = state.quickPropertiesSupportsStrokeWidth
+    let showCounterSequence = state.quickPropertiesSupportsCounterSequence
     let showCornerRadius = state.quickPropertiesSupportsCornerRadius
     let showLineStyle = state.quickPropertiesSupportsLineStyle
     let showArrowStyle = state.quickPropertiesSupportsArrowStyle
@@ -201,7 +202,8 @@ struct AnnotateQuickPropertiesBar: View {
     let hasBeforeBlurType = hasBeforeWatermarkRotation || showWatermark
     let hasBeforeSpotlightOpacity = hasBeforeBlurType || showBlurType
     let hasBeforeStrokeWidth = hasBeforeSpotlightOpacity || state.quickPropertiesSupportsSpotlightOpacity
-    let hasBeforeCornerRadius = hasBeforeStrokeWidth || showStrokeWidth
+    let hasBeforeCounterSequence = hasBeforeStrokeWidth || showStrokeWidth
+    let hasBeforeCornerRadius = hasBeforeCounterSequence || showCounterSequence
     let hasBeforeLineStyle = hasBeforeCornerRadius || showCornerRadius
     let hasBeforeArrowStyle = hasBeforeLineStyle || showLineStyle
     let hasBeforeTextSnap = hasBeforeArrowStyle || showArrowStyle
@@ -421,6 +423,19 @@ struct AnnotateQuickPropertiesBar: View {
           onEditingChanged: { isEditing in
             state.setQuickPropertiesControlEditing(isEditing)
           }
+        )
+      }
+
+      activePropertySlot(
+        isVisible: showCounterSequence,
+        isEnabled: true,
+        showsLeadingDivider: hasBeforeCounterSequence,
+        width: nil
+      ) {
+        QuickCounterSequenceControl(
+          selectedStyle: state.quickCounterSequenceBinding,
+          buttonWidth: density.controlButtonWidth,
+          groupSpacing: density.groupSpacing
         )
       }
 
@@ -1516,6 +1531,45 @@ private struct QuickTextSnapControl: View {
       .help(L10n.AnnotateUI.highlighterTextSnappingDescription)
       .accessibilityLabel(L10n.AnnotateUI.highlighterTextSnapping)
       .accessibilityValue(isEnabled ? L10n.Common.on : L10n.Common.off)
+    }
+  }
+}
+
+private struct QuickCounterSequenceControl: View {
+  @Binding var selectedStyle: CounterSequenceStyle
+  let buttonWidth: CGFloat
+  let groupSpacing: CGFloat
+
+  var body: some View {
+    QuickPropertiesGroup(title: L10n.AnnotateUI.counterSequence, spacing: groupSpacing) {
+      HStack(spacing: 5) {
+        ForEach(CounterSequenceStyle.allCases) { style in
+          Button {
+            selectedStyle = style
+          } label: {
+            Text(style.pickerLabel)
+              .font(.system(size: 11, weight: .semibold))
+              .lineLimit(1)
+              .minimumScaleFactor(0.8)
+              .foregroundColor(selectedStyle == style ? .accentColor : .secondary)
+              .frame(width: buttonWidth, height: 24)
+              .background(
+                RoundedRectangle(cornerRadius: 7)
+                  .fill(selectedStyle == style ? Color.accentColor.opacity(0.16) : SidebarColors.itemDefault)
+              )
+              .overlay(
+                RoundedRectangle(cornerRadius: 7)
+                  .stroke(
+                    selectedStyle == style ? Color.accentColor.opacity(0.45) : Color.secondary.opacity(0.14),
+                    lineWidth: 1
+                  )
+              )
+          }
+          .buttonStyle(.plain)
+          .help(style.displayName)
+          .accessibilityLabel(style.displayName)
+        }
+      }
     }
   }
 }

@@ -154,7 +154,8 @@ struct AnnotateToolbarView: View {
   private func annotationToolButton(for tool: AnnotationToolType) -> some View {
     ToolbarButton(
       icon: tool.icon,
-      isSelected: state.selectedTool == tool
+      isSelected: state.selectedTool == tool,
+      customIcon: tool == .counter ? AnyView(CounterToolIcon()) : nil
     ) {
       state.activateTool(tool)
     }

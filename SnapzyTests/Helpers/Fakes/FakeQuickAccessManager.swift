@@ -12,6 +12,7 @@ import Foundation
 @MainActor
 final class FakeQuickAccessManager: QuickAccessManaging {
   private(set) var addedScreenshots: [URL] = []
+  private(set) var screenshotCaptureRects: [CGRect?] = []
   private(set) var addedVideos: [URL] = []
   private(set) var createdScreenshotItems: [QuickAccessItem] = []
   private(set) var createdVideoItems: [QuickAccessItem] = []
@@ -21,10 +22,15 @@ final class FakeQuickAccessManager: QuickAccessManaging {
   var onAddVideo: ((URL) -> Void)?
 
   @discardableResult
-  func addScreenshot(url: URL) async -> QuickAccessItem? {
+  func addScreenshot(url: URL, captureScreenRect: CGRect?) async -> QuickAccessItem? {
     onAddScreenshot?(url)
     addedScreenshots.append(url)
-    let item = QuickAccessItem(url: url, thumbnail: NSImage(size: NSSize(width: 1, height: 1)))
+    screenshotCaptureRects.append(captureScreenRect)
+    let item = QuickAccessItem(
+      url: url,
+      thumbnail: NSImage(size: NSSize(width: 1, height: 1)),
+      captureScreenRect: captureScreenRect
+    )
     createdScreenshotItems.append(item)
     return item
   }
@@ -47,9 +53,13 @@ final class FakeQuickAccessManager: QuickAccessManaging {
   }
 
   @discardableResult
-  func pinScreenshot(url: URL) async -> QuickAccessItem? {
+  func pinScreenshot(url: URL, captureScreenRect: CGRect?) async -> QuickAccessItem? {
     pinnedScreenshotURLs.append(url)
-    let item = QuickAccessItem(url: url, thumbnail: NSImage(size: NSSize(width: 1, height: 1)))
+    let item = QuickAccessItem(
+      url: url,
+      thumbnail: NSImage(size: NSSize(width: 1, height: 1)),
+      captureScreenRect: captureScreenRect
+    )
     createdScreenshotItems.append(item)
     return item
   }

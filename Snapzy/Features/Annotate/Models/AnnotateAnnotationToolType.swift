@@ -60,7 +60,7 @@ nonisolated enum AnnotationToolType: String, CaseIterable, Identifiable {
     case .highlighter: return "highlighter"
     case .blur: return "eye.slash"
     case .spotlight: return "viewfinder"
-    case .counter: return "list.number"
+    case .counter: return "1.circle"
     case .watermark: return "seal"
     case .pencil: return "pencil"
     case .mockup: return "cube.transparent"

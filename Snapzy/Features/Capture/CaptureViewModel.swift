@@ -65,6 +65,9 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
   private let tempCaptureManager = TempCaptureManager.shared
   private var isAreaSelectionActive = false
   private var pinNextAreaCapture = false
+  /// Screen-space rect of the capture that is about to finish, forwarded to
+  /// Quick Access so its pin window can open where the screenshot was taken.
+  private var pendingCaptureScreenRect: CGRect?
   private var activeAreaSelectionSessionID: UUID?
   private var lazyAreaSnapshotTasks: [CGDirectDisplayID: Task<Void, Never>] = [:]
   private var lazyAreaSnapshotFailedDisplayIDs = Set<CGDirectDisplayID>()
@@ -114,8 +117,14 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
         guard let self else { return }
         Task {
           let pinToScreen = self.pinNextAreaCapture
+          let captureScreenRect = self.pendingCaptureScreenRect
           self.pinNextAreaCapture = false
-          await self.postCaptureHandler.handleScreenshotCapture(url: url, pinToScreen: pinToScreen)
+          self.pendingCaptureScreenRect = nil
+          await self.postCaptureHandler.handleScreenshotCapture(
+            url: url,
+            pinToScreen: pinToScreen,
+            captureScreenRect: captureScreenRect
+          )
         }
       }
       .store(in: &cancellables)
@@ -519,6 +528,7 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
       )
 
       let context = CaptureContext.fromPID(target.ownerPID, windowTitle: target.title)
+      pendingCaptureScreenRect = target.frame
       let result = await captureManager.captureWindow(
         target: target,
         saveDirectory: actualSaveDirectory,
@@ -533,6 +543,9 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
 
       isCapturing = false
       lastCaptureResult = result
+      if case .failure = result {
+        pendingCaptureScreenRect = nil
+      }
 
       if case .success = result {
         SoundManager.playScreenshotCapture()
@@ -1118,6 +1131,7 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
         self.isCapturing = true
         await Task.yield()
         self.pinNextAreaCapture = pinToScreen
+        self.pendingCaptureScreenRect = selection.rect
 
         let actualSaveDirectory = self.tempCaptureManager.resolveSaveDirectory(
           for: .screenshot,
@@ -1198,12 +1212,14 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
               frozenSession.invalidate()
               self.isCapturing = false
               self.pinNextAreaCapture = false
+              self.pendingCaptureScreenRect = nil
               self.lastCaptureResult = .failure(error)
               DiagnosticLogger.shared.log(.error, .capture, "Frozen area crop failed: \(error.localizedDescription)")
             } catch {
               frozenSession.invalidate()
               self.isCapturing = false
               self.pinNextAreaCapture = false
+              self.pendingCaptureScreenRect = nil
               self.lastCaptureResult = .failure(.captureFailed(error.localizedDescription))
               DiagnosticLogger.shared.log(.error, .capture, "Frozen area crop failed: \(error.localizedDescription)")
             }
@@ -1237,6 +1253,7 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
             frozenSession.invalidate()
             self.isCapturing = false
             self.pinNextAreaCapture = false
+            self.pendingCaptureScreenRect = nil
             self.lastCaptureResult = .failure(.captureFailed(L10n.ScreenCapture.selectionOutsideDisplayBounds))
             DiagnosticLogger.shared.log(
               .error,
@@ -1365,6 +1382,7 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
         self.isCapturing = true
         await Task.yield()
         self.pinNextAreaCapture = pinToScreen
+        self.pendingCaptureScreenRect = selection.rect
 
         let actualSaveDirectory = self.tempCaptureManager.resolveSaveDirectory(
           for: .screenshot,
@@ -1415,6 +1433,7 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
   private func clearPinFlagIfCaptureFailed(_ result: CaptureResult) {
     if case .failure = result {
       pinNextAreaCapture = false
+      pendingCaptureScreenRect = nil
     }
   }
 

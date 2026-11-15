@@ -356,6 +356,50 @@ final class QuickAccessCoreTests: XCTestCase {
     XCTAssertEqual(constrainedFrame.maxY, 576, accuracy: 0.001)
   }
 
+  func testQuickAccessPinWindowSizing_placesPinOverCapturedRegion() {
+    let visibleFrame = NSRect(x: 0, y: 0, width: 1440, height: 900)
+    let captureRect = NSRect(x: 100, y: 200, width: 400, height: 300)
+
+    let frame = QuickAccessPinWindowSizing.frame(
+      placingCapturedRegion: captureRect,
+      size: captureRect.size,
+      visibleFrame: visibleFrame
+    )
+
+    XCTAssertEqual(frame.origin.x, captureRect.origin.x, accuracy: 0.001)
+    XCTAssertEqual(frame.origin.y, captureRect.origin.y, accuracy: 0.001)
+    XCTAssertEqual(frame.size, captureRect.size)
+  }
+
+  func testQuickAccessPinWindowSizing_centersLargerPinOnCapturedRegion() {
+    let visibleFrame = NSRect(x: 0, y: 0, width: 1440, height: 900)
+    let captureRect = NSRect(x: 100, y: 200, width: 400, height: 300)
+    let pinSize = CGSize(width: 500, height: 400)
+
+    let frame = QuickAccessPinWindowSizing.frame(
+      placingCapturedRegion: captureRect,
+      size: pinSize,
+      visibleFrame: visibleFrame
+    )
+
+    XCTAssertEqual(frame.midX, captureRect.midX, accuracy: 0.001)
+    XCTAssertEqual(frame.midY, captureRect.midY, accuracy: 0.001)
+  }
+
+  func testQuickAccessPinWindowSizing_keepsCapturedRegionPinOnScreen() {
+    let visibleFrame = NSRect(x: 0, y: 0, width: 1440, height: 900)
+    let captureRect = NSRect(x: 1380, y: 100, width: 400, height: 300)
+
+    let frame = QuickAccessPinWindowSizing.frame(
+      placingCapturedRegion: captureRect,
+      size: captureRect.size,
+      visibleFrame: visibleFrame
+    )
+
+    XCTAssertEqual(frame.maxX, visibleFrame.maxX - 24, accuracy: 0.001)
+    XCTAssertEqual(frame.origin.y, 100, accuracy: 0.001)
+  }
+
   func testQuickAccessPinWindow_scrollZoomStepIgnoresInvalidDeltas() throws {
     let step = QuickAccessPinWindow.scrollZoomStep(
       scrollingDeltaY: 2,

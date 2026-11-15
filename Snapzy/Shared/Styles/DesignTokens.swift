@@ -58,6 +58,8 @@ struct ToolbarButton: View {
   var highlightColor: Color = .primary
   var selectedForegroundColor: Color? = nil
   var selectedBadgeIcon: String? = nil
+  /// Optional drawn glyph for tools that need a richer mark than an SF Symbol.
+  var customIcon: AnyView? = nil
 
   let action: () -> Void
 
@@ -65,24 +67,30 @@ struct ToolbarButton: View {
 
   var body: some View {
     Button(action: action) {
-      Image(systemName: displayedIcon)
-        .font(.system(size: 14, weight: .medium))
-        .foregroundColor(foregroundColor)
-        .frame(width: 28, height: 28)
-        .background(
-          RoundedRectangle(cornerRadius: 6)
-            .fill(backgroundColor)
-        )
-        .overlay(alignment: .topTrailing) {
-          if let selectedBadgeIcon, isSelected {
-            Image(systemName: selectedBadgeIcon)
-              .font(.system(size: 7, weight: .bold))
-              .foregroundColor(highlightColor)
-              .frame(width: 12, height: 12)
-              .background(Circle().fill(Color.white))
-              .offset(x: 3, y: -3)
-          }
+      Group {
+        if let customIcon {
+          customIcon
+        } else {
+          Image(systemName: displayedIcon)
+            .font(.system(size: 14, weight: .medium))
         }
+      }
+      .foregroundColor(foregroundColor)
+      .frame(width: 28, height: 28)
+      .background(
+        RoundedRectangle(cornerRadius: 6)
+          .fill(backgroundColor)
+      )
+      .overlay(alignment: .topTrailing) {
+        if let selectedBadgeIcon, isSelected {
+          Image(systemName: selectedBadgeIcon)
+            .font(.system(size: 7, weight: .bold))
+            .foregroundColor(highlightColor)
+            .frame(width: 12, height: 12)
+            .background(Circle().fill(Color.white))
+            .offset(x: 3, y: -3)
+        }
+      }
     }
     .buttonStyle(.plain)
     .onHover { isHovering = $0 }

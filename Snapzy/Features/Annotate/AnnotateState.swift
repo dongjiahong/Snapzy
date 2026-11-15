@@ -110,6 +110,7 @@ final class AnnotateState: ObservableObject {
     var watermarkStyle: String
     var spotlightOpacity: CGFloat?
     var lineStyle: String?
+    var counterSequenceStyle: String?
 
     init?(_ properties: AnnotationProperties) {
       guard let strokeColor = RGBAColor(color: properties.strokeColor),
@@ -128,6 +129,7 @@ final class AnnotateState: ObservableObject {
       self.watermarkStyle = properties.watermarkStyle.rawValue
       self.spotlightOpacity = properties.spotlightOpacity
       self.lineStyle = properties.lineStyle.rawValue
+      self.counterSequenceStyle = properties.counterSequenceStyle.rawValue
     }
 
     var annotationProperties: AnnotationProperties {
@@ -142,7 +144,8 @@ final class AnnotateState: ObservableObject {
         opacity: opacity,
         rotationDegrees: rotationDegrees,
         watermarkStyle: WatermarkStyle(rawValue: watermarkStyle) ?? .single,
-        spotlightOpacity: spotlightOpacity ?? 0.5
+        spotlightOpacity: spotlightOpacity ?? 0.5,
+        counterSequenceStyle: counterSequenceStyle.flatMap(CounterSequenceStyle.init(rawValue:)) ?? .number
       )
     }
   }
@@ -2796,14 +2799,38 @@ final class AnnotateState: ObservableObject {
 
   // MARK: - Counter
 
-  /// Derive next counter value from existing annotations.
-  /// This ensures undo/redo correctly adjusts future counter values.
-  func nextCounterValue() -> Int {
-    let maxExisting = annotations.compactMap { annotation -> Int? in
-      if case .counter(let v) = annotation.type { return v }
-      return nil
-    }.max() ?? 0
-    return maxExisting + 1
+  /// Derive the next sequence value for `style` from existing counters.
+  /// This ensures undo/redo correctly adjusts future counter values. Values
+  /// that are already in use are skipped, and the sequence wraps within the
+  /// style's range (1–99 or A–Z) once the highest value is taken.
+  func nextCounterValue(for style: CounterSequenceStyle = .number) -> Int {
+    let usedValues = Set(annotations.compactMap { annotation -> Int? in
+      guard case .counter(let value) = annotation.type,
+            annotation.properties.counterSequenceStyle == style else { return nil }
+      return value
+    })
+
+    guard usedValues.count < style.maxValue else { return style.maxValue }
+
+    var candidate = (usedValues.max() ?? 0) + 1
+    while candidate <= style.maxValue, usedValues.contains(candidate) {
+      candidate += 1
+    }
+    if candidate > style.maxValue {
+      candidate = (1 ... style.maxValue).first { !usedValues.contains($0) } ?? style.maxValue
+    }
+    return candidate
+  }
+
+  /// Sequence style used for the next counter. It intentionally reads the tool
+  /// default rather than the selected annotation, so switching 123/ABC does not
+  /// convert existing counters and both sequences stay independent.
+  var activeCounterSequenceStyle: CounterSequenceStyle {
+    defaultAnnotationProperties(for: .counter).counterSequenceStyle
+  }
+
+  func setActiveCounterSequenceStyle(_ style: CounterSequenceStyle) {
+    updateDefaultAnnotationProperties(for: .counter, counterSequenceStyle: style)
   }
 
   // MARK: - Crop Methods
@@ -3518,6 +3545,18 @@ final class AnnotateState: ObservableObject {
       autoSizingTextAnnotationIDs.remove(id)
     }
 
+    // Text has no scroll and clips outside its bounds, so keep the height in
+    // lockstep with the wrapped content after a manual resize. This also
+    // prevents a shortened box from cutting off its last line.
+    if case .text(let content) = annotations[index].type {
+      annotations[index].bounds = resizedTextBounds(
+        id: id,
+        text: content,
+        properties: annotations[index].properties,
+        currentBounds: annotations[index].bounds
+      )
+    }
+
     if isCombineMode, combineMode == .freeCanvas,
        case .embeddedImage = annotations[index].type {
       freeCombineBoundsByAnnotationID[id] = annotations[index].bounds
@@ -3899,7 +3938,6 @@ final class AnnotateState: ObservableObject {
     let annotationBounds = activeAnnotationBounds.standardized
     let topY = currentBounds.maxY
     let availableWidth = max(annotationBounds.maxX - currentBounds.minX, AnnotateTextLayout.minWidth)
-    let availableHeight = max(topY - annotationBounds.minY, AnnotateTextLayout.minimumHeight(for: font, presentation: properties.textPresentation))
     let targetWidth: CGFloat
     if autoSizingTextAnnotationIDs.contains(id) {
       targetWidth = AnnotateTextLayout.preferredAutoWidth(
@@ -3922,10 +3960,17 @@ final class AnnotateState: ObservableObject {
       origin: currentBounds.origin,
       fontName: properties.fontName,
       constrainedWidth: targetWidth,
-      maximumHeight: availableHeight,
       presentation: properties.textPresentation
     )
     bounds.origin.y = topY - bounds.height
+
+    // Grow by the full measured height instead of capping at the canvas
+    // bottom — capping clipped the last wrapped line while typing near the
+    // edge. When the whole box still fits, lift it up so every line stays
+    // inside the canvas; boxes taller than the canvas keep their top anchored.
+    if bounds.height <= annotationBounds.height {
+      bounds.origin.y = max(bounds.origin.y, annotationBounds.minY)
+    }
     return bounds
   }
 
@@ -4610,7 +4655,8 @@ final class AnnotateState: ObservableObject {
     rotationDegrees: CGFloat? = nil,
     watermarkStyle: WatermarkStyle? = nil,
     spotlightOpacity: CGFloat? = nil,
-    lineStyle: LineDashStyle? = nil
+    lineStyle: LineDashStyle? = nil,
+    counterSequenceStyle: CounterSequenceStyle? = nil
   ) {
     var properties = defaultAnnotationProperties(for: tool)
 
@@ -4652,6 +4698,9 @@ final class AnnotateState: ObservableObject {
     }
     if let lineStyle = lineStyle {
       properties.lineStyle = lineStyle
+    }
+    if let counterSequenceStyle = counterSequenceStyle {
+      properties.counterSequenceStyle = counterSequenceStyle
     }
 
     let sanitized = sanitizedAnnotationProperties(properties, for: tool)
@@ -5120,6 +5169,34 @@ final class AnnotateState: ObservableObject {
       },
       set: { [weak self] newType in
         self?.setActiveBlurType(newType)
+      }
+    )
+  }
+
+  var quickPropertiesSupportsCounterSequence: Bool {
+    guard editorMode == .annotate,
+          selectedTool != .crop else {
+      return false
+    }
+
+    let selected = quickPropertiesSelectionAnnotations
+    if !selected.isEmpty {
+      return selected.contains {
+        if case .counter = $0.type { return true }
+        return false
+      }
+    }
+
+    return quickPropertiesTool == .counter
+  }
+
+  var quickCounterSequenceBinding: Binding<CounterSequenceStyle> {
+    Binding(
+      get: { [weak self] in
+        self?.activeCounterSequenceStyle ?? .number
+      },
+      set: { [weak self] newStyle in
+        self?.setActiveCounterSequenceStyle(newStyle)
       }
     )
   }

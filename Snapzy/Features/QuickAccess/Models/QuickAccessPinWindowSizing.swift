@@ -29,6 +29,32 @@ enum QuickAccessPinWindowSizing {
     )
   }
 
+  /// A pin opens over the region it was captured from, so several screenshots
+  /// taken in different places don't pile up in the middle of the screen.
+  /// When the pin is a different size (canvas padding, annotations), it stays
+  /// centered on the captured region.
+  static func frame(placingCapturedRegion captureRect: CGRect, size: CGSize, on screen: NSScreen) -> NSRect {
+    frame(placingCapturedRegion: captureRect, size: size, visibleFrame: screen.visibleFrame)
+  }
+
+  static func frame(placingCapturedRegion captureRect: CGRect, size: CGSize, visibleFrame: NSRect) -> NSRect {
+    let frame = NSRect(
+      x: captureRect.midX - size.width / 2,
+      y: captureRect.midY - size.height / 2,
+      width: size.width,
+      height: size.height
+    )
+    return constrainedFrame(frame, visibleFrame: visibleFrame)
+  }
+
+  /// Screen containing the captured region, falling back to any intersecting
+  /// screen for regions that cross display boundaries.
+  static func screen(containing captureRect: CGRect) -> NSScreen? {
+    let center = CGPoint(x: captureRect.midX, y: captureRect.midY)
+    return NSScreen.screens.first { $0.frame.contains(center) }
+      ?? NSScreen.screens.first { $0.frame.intersects(captureRect) }
+  }
+
   static func constrainedFrame(_ frame: NSRect, on screen: NSScreen) -> NSRect {
     constrainedFrame(frame, visibleFrame: screen.visibleFrame)
   }

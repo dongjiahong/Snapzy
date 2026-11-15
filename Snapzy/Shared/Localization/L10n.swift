@@ -5474,6 +5474,21 @@ nonisolated enum L10n {
       defaultValue: "Blur Type",
       comment: "Section title for annotate blur type controls"
     )
+    static let counterSequence = string(
+      "annotate.counter-sequence",
+      defaultValue: "Sequence",
+      comment: "Quick properties title for the counter tool's numbering style"
+    )
+    static let counterSequenceNumbers = string(
+      "annotate.counter-sequence-numbers",
+      defaultValue: "Numbers (1–99)",
+      comment: "Counter sequence style that labels annotations 1, 2, 3 up to 99"
+    )
+    static let counterSequenceLetters = string(
+      "annotate.counter-sequence-letters",
+      defaultValue: "Letters (A–Z)",
+      comment: "Counter sequence style that labels annotations A, B, C up to Z"
+    )
     static let pixelated = string(
       "annotate.pixelated",
       defaultValue: "Pixelated",

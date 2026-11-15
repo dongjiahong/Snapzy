@@ -56,6 +56,7 @@ struct PersistedAnnotationProperties: Codable, Equatable {
   var textPresentation: String?
   var calloutTailTarget: CGPoint?
   var lineStyle: String?
+  var counterSequenceStyle: String?
 
   init(properties: AnnotationProperties) {
     strokeColor = RGBAColor(color: properties.strokeColor) ?? RGBAColor(red: 1, green: 0, blue: 0, alpha: 1)
@@ -71,6 +72,7 @@ struct PersistedAnnotationProperties: Codable, Equatable {
     textPresentation = properties.textPresentation.rawValue
     calloutTailTarget = properties.calloutTailTarget
     lineStyle = properties.lineStyle.rawValue
+    counterSequenceStyle = properties.counterSequenceStyle.rawValue
   }
 
   var annotationProperties: AnnotationProperties {
@@ -87,7 +89,8 @@ struct PersistedAnnotationProperties: Codable, Equatable {
       watermarkStyle: WatermarkStyle(rawValue: watermarkStyle) ?? .single,
       spotlightOpacity: spotlightOpacity ?? 0.5,
       textPresentation: TextPresentation(rawValue: textPresentation ?? "") ?? .plain,
-      calloutTailTarget: calloutTailTarget
+      calloutTailTarget: calloutTailTarget,
+      counterSequenceStyle: counterSequenceStyle.flatMap(CounterSequenceStyle.init(rawValue:)) ?? .number
     )
   }
 }

@@ -45,11 +45,16 @@ final class PostCaptureActionHandler {
 
   /// Execute all enabled post-capture actions for a screenshot
   @discardableResult
-  func handleScreenshotCapture(url: URL, pinToScreen: Bool = false) async -> QuickAccessItem? {
+  func handleScreenshotCapture(
+    url: URL,
+    pinToScreen: Bool = false,
+    captureScreenRect: CGRect? = nil
+  ) async -> QuickAccessItem? {
     let quickAccessItem = await executeActions(
       for: .screenshot,
       url: url,
-      pinToScreen: pinToScreen
+      pinToScreen: pinToScreen,
+      captureScreenRect: captureScreenRect
     )
 
     // Add to capture history
@@ -104,7 +109,7 @@ final class PostCaptureActionHandler {
 
     if preferences.isActionEnabled(.showQuickAccess, for: .screenshot) {
       for url in validURLs {
-        let item = await quickAccess.addScreenshot(url: url)
+        let item = await quickAccess.addScreenshot(url: url, captureScreenRect: nil)
         if let item, let sessionData = sessionDataByURL[url] {
           AnnotateManager.shared.saveSessionData(sessionData, for: item.id)
         }
@@ -298,7 +303,8 @@ final class PostCaptureActionHandler {
     for captureType: CaptureType,
     url: URL,
     skipQuickAccess: Bool = false,
-    pinToScreen: Bool = false
+    pinToScreen: Bool = false,
+    captureScreenRect: CGRect? = nil
   ) async -> QuickAccessItem? {
     let scopedAccess = fileAccess.beginAccessingURL(url)
     defer { scopedAccess.stop() }
@@ -357,7 +363,10 @@ final class PostCaptureActionHandler {
     if !skipQuickAccess && preferences.isActionEnabled(.showQuickAccess, for: captureType) {
       switch captureType {
       case .screenshot:
-        quickAccessItem = await quickAccess.addScreenshot(url: url)
+        quickAccessItem = await quickAccess.addScreenshot(
+          url: url,
+          captureScreenRect: captureScreenRect
+        )
         if let quickAccessItem, let screenshotSessionData {
           AnnotateManager.shared.saveSessionData(screenshotSessionData, for: quickAccessItem.id)
         }
@@ -388,7 +397,10 @@ final class PostCaptureActionHandler {
       if let quickAccessItem {
         quickAccess.pinScreenshot(id: quickAccessItem.id)
       } else {
-        quickAccessItem = await quickAccess.pinScreenshot(url: url)
+        quickAccessItem = await quickAccess.pinScreenshot(
+          url: url,
+          captureScreenRect: captureScreenRect
+        )
       }
       DiagnosticLogger.shared.log(
         .info,

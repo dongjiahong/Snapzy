@@ -557,7 +557,8 @@ private struct DragFallbackSignature: Equatable {
       properties.fontName,
       String(quantize(properties.opacity)),
       String(quantize(properties.rotationDegrees)),
-      properties.watermarkStyle.rawValue
+      properties.watermarkStyle.rawValue,
+      properties.counterSequenceStyle.rawValue
     ].joined(separator: "|")
   }
 

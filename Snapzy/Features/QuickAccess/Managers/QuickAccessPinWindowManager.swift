@@ -103,7 +103,9 @@ private final class QuickAccessPinWindowController {
     self.item = item
 
     let image = Self.loadImage(for: item)
-    let screen = ScreenUtility.activeScreen()
+    let screen = item.captureScreenRect
+      .flatMap(QuickAccessPinWindowSizing.screen(containing:))
+      ?? ScreenUtility.activeScreen()
     state = QuickAccessPinWindowState(
       id: item.id,
       url: item.url,
@@ -112,7 +114,17 @@ private final class QuickAccessPinWindowController {
       baseSize: QuickAccessPinWindowSizing.baseSize(for: image.size)
     )
 
-    let frame = QuickAccessPinWindowSizing.centeredFrame(size: state.displaySize, on: screen)
+    let pinSize = state.displaySize
+    let frame: NSRect
+    if let captureScreenRect = item.captureScreenRect {
+      frame = QuickAccessPinWindowSizing.frame(
+        placingCapturedRegion: captureScreenRect,
+        size: pinSize,
+        on: screen
+      )
+    } else {
+      frame = QuickAccessPinWindowSizing.centeredFrame(size: pinSize, on: screen)
+    }
     window = QuickAccessPinWindow(contentRect: frame, state: state)
     window.contentView = hostingView(size: state.displaySize)
     window.applyAppearance(

@@ -48,9 +48,12 @@ struct QuickAccessItem: Identifiable, Equatable {
   var isPinned: Bool = false
   /// True if the item's corresponding Pin or Edit window is currently open
   var isWindowOpen: Bool = false
+  /// Screen-space region the screenshot was captured from. Pins open here so
+  /// several captures don't stack in the middle of the screen.
+  var captureScreenRect: CGRect?
 
   /// Initializer for screenshots (backward compatible)
-  init(url: URL, thumbnail: NSImage) {
+  init(url: URL, thumbnail: NSImage, captureScreenRect: CGRect? = nil) {
     self.id = UUID()
     self.url = url
     self.thumbnail = thumbnail
@@ -62,6 +65,7 @@ struct QuickAccessItem: Identifiable, Equatable {
     self.cloudKey = nil
     self.isPinned = false
     self.isWindowOpen = false
+    self.captureScreenRect = captureScreenRect
   }
 
   /// Initializer for videos with duration
@@ -77,10 +81,11 @@ struct QuickAccessItem: Identifiable, Equatable {
     self.cloudKey = nil
     self.isPinned = false
     self.isWindowOpen = false
+    self.captureScreenRect = nil
   }
 
   /// Initializer with explicit id (used for thumbnail retry updates)
-  init(id: UUID, url: URL, thumbnail: NSImage, capturedAt: Date, itemType: QuickAccessItemType, duration: TimeInterval?, thumbnailVersion: UUID = UUID(), cloudURL: URL? = nil, cloudKey: String? = nil, isCloudStale: Bool = false, isPinned: Bool = false, isWindowOpen: Bool = false) {
+  init(id: UUID, url: URL, thumbnail: NSImage, capturedAt: Date, itemType: QuickAccessItemType, duration: TimeInterval?, thumbnailVersion: UUID = UUID(), cloudURL: URL? = nil, cloudKey: String? = nil, isCloudStale: Bool = false, isPinned: Bool = false, isWindowOpen: Bool = false, captureScreenRect: CGRect? = nil) {
     self.id = id
     self.url = url
     self.thumbnail = thumbnail
@@ -93,6 +98,7 @@ struct QuickAccessItem: Identifiable, Equatable {
     self.isCloudStale = isCloudStale
     self.isPinned = isPinned
     self.isWindowOpen = isWindowOpen
+    self.captureScreenRect = captureScreenRect
   }
 
   static func == (lhs: QuickAccessItem, rhs: QuickAccessItem) -> Bool {

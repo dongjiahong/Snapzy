@@ -1350,6 +1350,50 @@ nonisolated enum AnnotationType: Equatable {
   }
 }
 
+/// Label sequence for counter annotations: numbers up to 99 or letters up to Z.
+nonisolated enum CounterSequenceStyle: String, Codable, CaseIterable, Identifiable {
+  case number
+  case letter
+
+  var id: String { rawValue }
+
+  /// Highest sequence value the style can display.
+  var maxValue: Int {
+    switch self {
+    case .number: return 99
+    case .letter: return 26
+    }
+  }
+
+  /// Compact glyph pair shown in the quick properties picker.
+  var pickerLabel: String {
+    switch self {
+    case .number: return "123"
+    case .letter: return "ABC"
+    }
+  }
+
+  var displayName: String {
+    switch self {
+    case .number: return L10n.AnnotateUI.counterSequenceNumbers
+    case .letter: return L10n.AnnotateUI.counterSequenceLetters
+    }
+  }
+
+  /// Renders a 1-based sequence value using this style.
+  func label(for value: Int) -> String {
+    let clampedValue = min(max(value, 1), maxValue)
+    switch self {
+    case .number:
+      return "\(clampedValue)"
+    case .letter:
+      let alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+      let index = alphabet.index(alphabet.startIndex, offsetBy: clampedValue - 1)
+      return String(alphabet[index])
+    }
+  }
+}
+
 /// Visual properties for an annotation
 nonisolated struct AnnotationProperties: Equatable {
   static let controlValueRange: ClosedRange<CGFloat> = 1 ... 20
@@ -1367,6 +1411,7 @@ nonisolated struct AnnotationProperties: Equatable {
   var spotlightOpacity: CGFloat
   var textPresentation: TextPresentation
   var calloutTailTarget: CGPoint?
+  var counterSequenceStyle: CounterSequenceStyle
 
   init(
     strokeColor: Color = .red,
@@ -1381,7 +1426,8 @@ nonisolated struct AnnotationProperties: Equatable {
     watermarkStyle: WatermarkStyle = .single,
     spotlightOpacity: CGFloat = 0.5,
     textPresentation: TextPresentation = .plain,
-    calloutTailTarget: CGPoint? = nil
+    calloutTailTarget: CGPoint? = nil,
+    counterSequenceStyle: CounterSequenceStyle = .number
   ) {
     self.strokeColor = strokeColor
     self.fillColor = fillColor
@@ -1396,6 +1442,7 @@ nonisolated struct AnnotationProperties: Equatable {
     self.spotlightOpacity = spotlightOpacity
     self.textPresentation = textPresentation
     self.calloutTailTarget = calloutTailTarget
+    self.counterSequenceStyle = counterSequenceStyle
   }
 
   static func clampedControlValue(_ value: CGFloat) -> CGFloat {
