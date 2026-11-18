@@ -116,6 +116,8 @@ struct TextStylingSection: View {
           swatchSize: 24
         )
       }
+
+      AnnotateColorOpacitySlider(selectedColor: backgroundColorBinding(for: annotation))
     }
   }
 

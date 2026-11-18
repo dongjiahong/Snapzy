@@ -161,6 +161,8 @@ struct ColorPickerRow: View {
           swatchSize: 20
         )
       }
+
+      AnnotateColorOpacitySlider(selectedColor: $selectedColor)
     }
   }
 

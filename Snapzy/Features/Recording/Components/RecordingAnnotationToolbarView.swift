@@ -25,6 +25,7 @@ struct RecordingAnnotationToolbarView: View {
 
   private let colorPresets: [Color] = [.red, .blue, .green, .yellow, .white]
   private let widthPresets: [CGFloat] = [2, 4, 8]
+  @State private var showsOpacityPopover = false
 
   var body: some View {
     contentLayout
@@ -100,12 +101,28 @@ struct RecordingAnnotationToolbarView: View {
           .overlay(
             Circle()
               .strokeBorder(
-                state.strokeColor == color ? Color.primary : Color.clear,
+                AnnotateColorPaletteStore.colorsMatch(state.strokeColor, color) ? Color.primary : Color.clear,
                 lineWidth: 2
               )
           )
       }
       .buttonStyle(.plain)
+    }
+
+    Button {
+      showsOpacityPopover.toggle()
+    } label: {
+      Image(systemName: "circle.lefthalf.filled")
+        .font(.system(size: 11, weight: .medium))
+        .foregroundColor(.primary.opacity(0.85))
+        .frame(width: 20, height: 20)
+    }
+    .buttonStyle(.plain)
+    .help(L10n.AnnotateUI.watermarkOpacity)
+    .popover(isPresented: $showsOpacityPopover, arrowEdge: direction == .horizontal ? .bottom : .trailing) {
+      AnnotateColorOpacitySlider(selectedColor: $state.strokeColor, compact: true)
+        .frame(width: 170)
+        .padding(10)
     }
   }
 

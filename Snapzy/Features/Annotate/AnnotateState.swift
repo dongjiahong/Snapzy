@@ -56,6 +56,7 @@ final class AnnotateState: ObservableObject {
     var embeddedImageSnapshotCacheData: [UUID: Data]
     var annotations: [AnnotationItem]
     var cropRect: CGRect?
+    var cropFillColor: Color
     var originalCropRect: CGRect?
     var cropAspectRatio: CropAspectRatio
     var isCropPortraitOrientation: Bool
@@ -79,6 +80,7 @@ final class AnnotateState: ObservableObject {
     let selectedTool: AnnotationToolType
     let selectedAnnotationIds: Set<UUID>
     let cropRect: CGRect?
+    let cropFillColor: Color
     let didCutoutAutoApplyCrop: Bool
     let cutoutAutoAppliedCropRect: CGRect?
   }
@@ -1370,6 +1372,8 @@ final class AnnotateState: ObservableObject {
 
   /// Current crop rectangle in image coordinates (nil = no crop, full image)
   @Published var cropRect: CGRect?
+  /// Fill color used for expanded crop areas outside the source image
+  @Published var cropFillColor: Color = .white
   /// Original crop rect when crop mode started (used as base for aspect ratio calculations)
   private var originalCropRect: CGRect?
   /// Context to restore after leaving crop mode.
@@ -1571,6 +1575,7 @@ final class AnnotateState: ObservableObject {
     cutoutErrorMessage = nil
     activeCutoutOperationID = nil
     cropRect = nil
+    cropFillColor = .white
     originalCropRect = nil
     cropInteractionContext = nil
     isCropActive = false
@@ -1692,6 +1697,7 @@ final class AnnotateState: ObservableObject {
       isCombineMode: isCombineMode,
       effectiveContentBounds: effectiveContentBounds,
       cropRect: cropRect,
+      cropFillColor: cropFillColor,
       annotations: annotations,
       embeddedImages: embeddedImageAssets,
       embeddedCGImages: embeddedImageCGImageCache,
@@ -1816,6 +1822,7 @@ final class AnnotateState: ObservableObject {
 
     // Reset crop for new image
     cropRect = nil
+    cropFillColor = .white
     originalCropRect = nil
     cropInteractionContext = nil
     isCropActive = false
@@ -2560,6 +2567,7 @@ final class AnnotateState: ObservableObject {
       embeddedImageSnapshotCacheData: embeddedImageSnapshotCacheData,
       annotations: annotations,
       cropRect: cropRect,
+      cropFillColor: cropFillColor,
       originalCropRect: originalCropRect,
       cropAspectRatio: cropAspectRatio,
       isCropPortraitOrientation: isCropPortraitOrientation,
@@ -2643,6 +2651,7 @@ final class AnnotateState: ObservableObject {
     embeddedImageCGImageCache.removeAll()
     annotations = snapshot.annotations
     cropRect = snapshot.cropRect
+    cropFillColor = snapshot.cropFillColor
     originalCropRect = snapshot.originalCropRect
     cropAspectRatio = snapshot.cropAspectRatio
     isCropPortraitOrientation = snapshot.isCropPortraitOrientation
@@ -2865,6 +2874,7 @@ final class AnnotateState: ObservableObject {
         selectedTool: selectedTool == .crop ? .selection : selectedTool,
         selectedAnnotationIds: selectedAnnotationIds,
         cropRect: cropRect,
+        cropFillColor: cropFillColor,
         didCutoutAutoApplyCrop: didCutoutAutoApplyCrop,
         cutoutAutoAppliedCropRect: cutoutAutoAppliedCropRect
       )
@@ -2936,10 +2946,12 @@ final class AnnotateState: ObservableObject {
 
     if let context = cropInteractionContext {
       cropRect = context.cropRect
+      cropFillColor = context.cropFillColor
       didCutoutAutoApplyCrop = context.didCutoutAutoApplyCrop
       cutoutAutoAppliedCropRect = context.cutoutAutoAppliedCropRect
     } else {
       cropRect = nil
+      cropFillColor = .white
       clearCutoutAutoCropTracking()
     }
 
@@ -2954,6 +2966,7 @@ final class AnnotateState: ObservableObject {
   /// Reset crop to nil
   func resetCrop() {
     cropRect = nil
+    cropFillColor = .white
     originalCropRect = nil
     cropInteractionContext = nil
     isCropActive = false

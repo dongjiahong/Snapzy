@@ -526,21 +526,41 @@ struct AnnotateCanvasView: View {
     let imageOffset = displayOffset(for: imageBounds, in: visibleBounds, scale: scale)
 
     if let sourceImage = state.effectiveSourceImage {
-      Image(nsImage: sourceImage)
-        .resizable()
-        .interpolation(.high)
-        .aspectRatio(contentMode: .fit)
-        .frame(width: imageBounds.width * scale, height: imageBounds.height * scale)
-        .offset(x: imageOffset.x, y: imageOffset.y)
-        .frame(width: visibleBounds.width * scale, height: visibleBounds.height * scale)
-        .clipped()
-        .clipShape(RoundedRectangle(cornerRadius: currentCornerRadius, style: .continuous))
-        .shadow(
-          color: .black.opacity(state.backgroundStyle != .none ? currentShadowIntensity : 0),
-          radius: AnnotateCanvasDefaults.shadowRadius,
-          x: AnnotateCanvasDefaults.shadowOffsetX,
-          y: AnnotateCanvasDefaults.shadowOffsetY
-        )
+      ZStack {
+        if state.isCropActive,
+           let activeCrop = state.cropRect?.standardized,
+           !AnnotateColorPaletteStore.isClear(state.cropFillColor),
+           !imageBounds.contains(activeCrop) {
+          let cropOffset = displayOffset(for: activeCrop, in: visibleBounds, scale: scale)
+          Rectangle()
+            .fill(state.cropFillColor)
+            .frame(width: activeCrop.width * scale, height: activeCrop.height * scale)
+            .offset(x: cropOffset.x, y: cropOffset.y)
+        } else if !state.isCropActive,
+                  state.cropRect != nil,
+                  !AnnotateColorPaletteStore.isClear(state.cropFillColor),
+                  !imageBounds.contains(visibleBounds) {
+          Rectangle()
+            .fill(state.cropFillColor)
+            .frame(width: visibleBounds.width * scale, height: visibleBounds.height * scale)
+        }
+
+        Image(nsImage: sourceImage)
+          .resizable()
+          .interpolation(.high)
+          .aspectRatio(contentMode: .fit)
+          .frame(width: imageBounds.width * scale, height: imageBounds.height * scale)
+          .offset(x: imageOffset.x, y: imageOffset.y)
+      }
+      .frame(width: visibleBounds.width * scale, height: visibleBounds.height * scale)
+      .clipped()
+      .clipShape(RoundedRectangle(cornerRadius: currentCornerRadius, style: .continuous))
+      .shadow(
+        color: .black.opacity(state.backgroundStyle != .none ? currentShadowIntensity : 0),
+        radius: AnnotateCanvasDefaults.shadowRadius,
+        x: AnnotateCanvasDefaults.shadowOffsetX,
+        y: AnnotateCanvasDefaults.shadowOffsetY
+      )
     }
   }
 

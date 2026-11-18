@@ -35,6 +35,12 @@ struct CropToolbarView: View {
 
       // Auto-crop to content (same as the `A` shortcut)
       autoCropButton
+
+      Divider()
+        .frame(height: 20)
+
+      // Fill color for expanded crop
+      CropFillColorButton(selectedColor: $state.cropFillColor)
     }
   }
 
@@ -173,5 +179,96 @@ struct CropRatioButton: View {
       return Color.primary.opacity(0.1)
     }
     return Color.clear
+  }
+}
+
+// MARK: - Crop Fill Color Button
+
+struct CropFillColorButton: View {
+  @Binding var selectedColor: Color
+  @ObservedObject private var paletteStore = AnnotateColorPaletteStore.shared
+  @State private var showsPopover = false
+  @State private var draftCustomColor = Color.white
+
+  private let presetColors: [Color] = [
+    .clear, .white, .black, .gray, .red, .orange, .yellow, .green, .blue, .purple
+  ]
+
+  private let columns = Array(repeating: GridItem(.fixed(24), spacing: 8), count: 5)
+
+  var body: some View {
+    Button {
+      showsPopover.toggle()
+    } label: {
+      HStack(spacing: 5) {
+        AnnotateColorSwatchCircle(
+          color: selectedColor,
+          isSelected: false,
+          size: 14
+        )
+        Text(L10n.Common.fill)
+          .font(.system(size: 11, weight: .medium))
+          .foregroundStyle(Color.primary)
+        Image(systemName: "chevron.down")
+          .font(.system(size: 8, weight: .bold))
+          .foregroundStyle(Color.secondary)
+      }
+      .padding(.horizontal, 8)
+      .frame(height: 28)
+      .background(
+        RoundedRectangle(cornerRadius: 6)
+          .fill(Color.primary.opacity(0.08))
+      )
+    }
+    .buttonStyle(.plain)
+    .help(L10n.Common.fill)
+    .popover(isPresented: $showsPopover, arrowEdge: .top) {
+      VStack(alignment: .leading, spacing: Spacing.sm) {
+        Text(L10n.Common.fill)
+          .font(Typography.labelMedium)
+          .foregroundColor(SidebarColors.labelSecondary)
+
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+          ForEach(presetColors, id: \.self) { color in
+            Button {
+              selectedColor = color
+            } label: {
+              AnnotateColorSwatchCircle(
+                color: color,
+                isSelected: AnnotateColorPaletteStore.colorsMatch(selectedColor, color),
+                size: 22
+              )
+            }
+            .buttonStyle(.plain)
+            .help(AnnotateColorPaletteStore.isClear(color) ? L10n.Common.none : L10n.Common.fill)
+          }
+
+          ForEach(paletteStore.customColors, id: \.self) { color in
+            AnnotateColorSwatchButton(
+              color: color,
+              isSelected: AnnotateColorPaletteStore.colorsMatch(selectedColor, color),
+              size: 22,
+              onDelete: {
+                paletteStore.removeColor(color)
+              }
+            ) {
+              selectedColor = color
+            }
+          }
+
+          AnnotateCustomColorPickerControl(
+            selectedColor: $selectedColor,
+            draftColor: $draftCustomColor,
+            swatchSize: 22
+          )
+        }
+
+        Divider()
+
+        AnnotateColorOpacitySlider(selectedColor: $selectedColor)
+      }
+      .padding(12)
+      .frame(width: 196, alignment: .leading)
+    }
   }
 }

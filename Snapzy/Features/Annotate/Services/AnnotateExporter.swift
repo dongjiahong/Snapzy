@@ -546,6 +546,17 @@ final class AnnotateExporter {
       path.addClip()
     }
 
+    if !snapshot.isCombineMode,
+       let cropRect = snapshot.cropRect,
+       !CGRect(origin: .zero, size: sourceImage.size).contains(cropRect),
+       let fillRGBA = RGBAColor(color: snapshot.cropFillColor),
+       fillRGBA.alpha > 0.001 {
+      context.saveGState()
+      context.setFillColor(NSColor(snapshot.cropFillColor).cgColor)
+      context.fill(imageRect)
+      context.restoreGState()
+    }
+
     drawSourceImage(
       sourceImage,
       effectiveBounds: effectiveBounds,
@@ -1088,6 +1099,16 @@ final class AnnotateExporter {
     NSGraphicsContext.current = graphicsContext
 
     let context = graphicsContext.cgContext
+
+    if let cropRect = snapshot.cropRect,
+       !CGRect(origin: .zero, size: sourceImage.size).contains(cropRect),
+       let fillRGBA = RGBAColor(color: snapshot.cropFillColor),
+       fillRGBA.alpha > 0.001 {
+      context.saveGState()
+      context.setFillColor(NSColor(snapshot.cropFillColor).cgColor)
+      context.fill(CGRect(origin: .zero, size: effectiveBounds.size))
+      context.restoreGState()
+    }
 
     drawSourceImage(sourceImage, effectiveBounds: effectiveBounds, destinationOrigin: .zero, in: context)
 

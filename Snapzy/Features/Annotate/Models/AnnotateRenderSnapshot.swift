@@ -6,6 +6,7 @@
 //
 
 import AppKit
+import SwiftUI
 
 /// Frozen copy of every `AnnotateState` input used by `AnnotateExporter` rendering.
 /// Built on the main actor (lazy caches pre-warmed, background images pre-resolved),
@@ -19,6 +20,7 @@ struct AnnotateRenderSnapshot {
   var isCombineMode: Bool
   var effectiveContentBounds: CGRect
   var cropRect: CGRect?
+  var cropFillColor: Color = .white
   var annotations: [AnnotationItem]
   var embeddedImages: [UUID: NSImage]
   var embeddedCGImages: [UUID: CGImage]

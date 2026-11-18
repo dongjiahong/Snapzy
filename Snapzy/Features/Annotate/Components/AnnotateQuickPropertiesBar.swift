@@ -830,6 +830,10 @@ private struct QuickPropertiesColorPopover: View {
         colorPickerPanel
           .padding(.top, 2)
       }
+
+      Divider()
+
+      AnnotateColorOpacitySlider(selectedColor: $selectedColor)
     }
     .padding(12)
     .frame(width: 196, alignment: .leading)

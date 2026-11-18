@@ -83,6 +83,15 @@ struct VideoColorSwatchGrid: View {
           swatchSize: nil
         )
       }
+
+      if let color = selectedColor {
+        AnnotateColorOpacitySlider(
+          selectedColor: Binding(
+            get: { color },
+            set: { selectedColor = $0 }
+          )
+        )
+      }
     }
   }
 

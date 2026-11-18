@@ -321,6 +321,15 @@ struct ColorSwatchGrid: View {
           swatchSize: Size.colorSwatchSmall
         )
       }
+
+      if let color = selectedColor {
+        AnnotateColorOpacitySlider(
+          selectedColor: Binding(
+            get: { color },
+            set: { selectedColor = $0 }
+          )
+        )
+      }
     }
   }
 
@@ -846,6 +855,69 @@ private struct HSBAColor: Equatable {
 
 private func clamped(_ value: Double) -> Double {
   min(max(value, 0), 1)
+}
+
+// MARK: - Color Opacity Slider
+
+struct AnnotateColorOpacitySlider: View {
+  @Binding var selectedColor: Color
+  var label: String = L10n.AnnotateUI.watermarkOpacity
+  var compact: Bool = false
+
+  private var isClear: Bool {
+    AnnotateColorPaletteStore.isClear(selectedColor)
+  }
+
+  private var opacityValue: Double {
+    guard !isClear, let rgba = RGBAColor(color: selectedColor) else { return 0 }
+    return min(max(rgba.alpha, 0), 1)
+  }
+
+  private var opacityBinding: Binding<Double> {
+    Binding(
+      get: { max(opacityValue, 0.01) },
+      set: { newAlpha in
+        let clampedAlpha = min(max(newAlpha, 0.01), 1.0)
+        guard let rgba = RGBAColor(color: selectedColor) else {
+          selectedColor = selectedColor.opacity(clampedAlpha)
+          return
+        }
+        selectedColor = RGBAColor(
+          red: rgba.red,
+          green: rgba.green,
+          blue: rgba.blue,
+          alpha: clampedAlpha
+        ).color
+      }
+    )
+  }
+
+  var body: some View {
+    HStack(spacing: 6) {
+      if compact {
+        Image(systemName: "circle.lefthalf.filled")
+          .font(.system(size: 10))
+          .foregroundColor(.secondary)
+      } else {
+        Text(label)
+          .font(Typography.labelSmall)
+          .foregroundColor(SidebarColors.labelSecondary)
+          .lineLimit(1)
+      }
+
+      Slider(value: opacityBinding, in: 0.01 ... 1.0)
+        .controlSize(.small)
+        .disabled(isClear)
+        .opacity(isClear ? 0.45 : 1)
+
+      Text("\(Int((opacityValue * 100).rounded()))%")
+        .font(Typography.labelSmall)
+        .foregroundColor(SidebarColors.labelSecondary)
+        .lineLimit(1)
+        .monospacedDigit()
+        .frame(width: 34, alignment: .trailing)
+    }
+  }
 }
 
 // MARK: - Slider Row

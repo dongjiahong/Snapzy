@@ -72,8 +72,14 @@ nonisolated struct AnnotationRenderer {
       strokeCurrentPath(lineStyle: annotation.properties.lineStyle, strokeWidth: annotation.properties.strokeWidth)
 
     case .filledRectangle:
-      context.addPath(roundedRectPath(in: annotation.bounds, cornerRadius: annotation.properties.cornerRadius))
-      strokeCurrentPath(lineStyle: annotation.properties.lineStyle, strokeWidth: annotation.properties.strokeWidth, mode: .fillStroke)
+      drawFilledRectangle(
+        in: annotation.bounds,
+        cornerRadius: annotation.properties.cornerRadius,
+        strokeColor: annotation.properties.strokeColor,
+        fillColor: annotation.properties.fillColor,
+        lineStyle: annotation.properties.lineStyle,
+        strokeWidth: annotation.properties.strokeWidth
+      )
 
     case .oval:
       context.addEllipse(in: annotation.bounds)
@@ -178,10 +184,14 @@ nonisolated struct AnnotationRenderer {
       let currentPoint = currentPath.last ?? start
       let rect = makeRect(from: start, to: currentPoint)
       let resolvedFillColor = fillColor == .clear ? strokeColor.opacity(1) : fillColor
-      context.setFillColor(NSColor(resolvedFillColor).cgColor)
-      context.addPath(roundedRectPath(in: rect, cornerRadius: rectangleCornerRadius))
-      strokeCurrentPath(lineStyle: lineStyle, strokeWidth: strokeWidth, mode: .fillStroke)
-      context.setFillColor(NSColor.clear.cgColor)
+      drawFilledRectangle(
+        in: rect,
+        cornerRadius: rectangleCornerRadius,
+        strokeColor: strokeColor,
+        fillColor: resolvedFillColor,
+        lineStyle: lineStyle,
+        strokeWidth: strokeWidth
+      )
 
     case .oval:
       let currentPoint = currentPath.last ?? start
@@ -304,6 +314,48 @@ nonisolated struct AnnotationRenderer {
     context.setLineDash(phase: 0, lengths: [])
   }
 
+  private func drawFilledRectangle(
+    in rect: CGRect,
+    cornerRadius: CGFloat,
+    strokeColor: Color,
+    fillColor: Color,
+    lineStyle: LineDashStyle,
+    strokeWidth: CGFloat
+  ) {
+    let strokeRGBA = srgbComponents(for: strokeColor)
+    let fillRGBA = srgbComponents(for: fillColor)
+    let path = roundedRectPath(in: rect, cornerRadius: cornerRadius)
+
+    context.saveGState()
+    if strokeRGBA.alpha < 0.999, abs(strokeRGBA.alpha - fillRGBA.alpha) < 0.001 {
+      context.setAlpha(strokeRGBA.alpha)
+      context.beginTransparencyLayer(auxiliaryInfo: nil)
+      context.setStrokeColor(NSColor(srgbRed: strokeRGBA.red, green: strokeRGBA.green, blue: strokeRGBA.blue, alpha: 1).cgColor)
+      context.setFillColor(NSColor(srgbRed: fillRGBA.red, green: fillRGBA.green, blue: fillRGBA.blue, alpha: 1).cgColor)
+      context.setLineWidth(strokeWidth)
+      context.addPath(path)
+      strokeCurrentPath(lineStyle: lineStyle, strokeWidth: strokeWidth, mode: .fillStroke)
+      context.endTransparencyLayer()
+    } else {
+      context.setStrokeColor(NSColor(strokeColor).cgColor)
+      context.setFillColor(NSColor(fillColor).cgColor)
+      context.setLineWidth(strokeWidth)
+      context.addPath(path)
+      strokeCurrentPath(lineStyle: lineStyle, strokeWidth: strokeWidth, mode: .fillStroke)
+    }
+    context.restoreGState()
+  }
+
+  private func srgbComponents(for color: Color) -> (red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {
+    let nsColor = NSColor(color).usingColorSpace(.sRGB) ?? NSColor(color)
+    var red: CGFloat = 0
+    var green: CGFloat = 0
+    var blue: CGFloat = 0
+    var alpha: CGFloat = 1
+    nsColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+    return (red, green, blue, alpha)
+  }
+
   private func drawArrow(
     _ geometry: ArrowGeometry,
     strokeWidth: CGFloat,
@@ -314,13 +366,21 @@ nonisolated struct AnnotationRenderer {
 
     switch geometry.arrowType {
     case .classic:
-      let cgStrokeColor = NSColor(strokeColor).cgColor
+      let rgba = srgbComponents(for: strokeColor)
+      let needsTransparencyLayer = rgba.alpha < 0.999
+      let cgStrokeColor = needsTransparencyLayer
+        ? NSColor(srgbRed: rgba.red, green: rgba.green, blue: rgba.blue, alpha: 1).cgColor
+        : NSColor(strokeColor).cgColor
       context.saveGState()
       context.setShadow(
         offset: CGSize(width: 0, height: -1.0),
         blur: 2.0,
-        color: NSColor.black.withAlphaComponent(0.20).cgColor
+        color: NSColor.black.withAlphaComponent(0.20 * rgba.alpha).cgColor
       )
+      if needsTransparencyLayer {
+        context.setAlpha(rgba.alpha)
+        context.beginTransparencyLayer(auxiliaryInfo: nil)
+      }
       context.setStrokeColor(cgStrokeColor)
       context.setFillColor(cgStrokeColor)
       context.setLineWidth(strokeWidth)
@@ -346,6 +406,9 @@ nonisolated struct AnnotationRenderer {
         outwardAngle: geometry.tangentAngleAtStart(),
         strokeWidth: strokeWidth
       )
+      if needsTransparencyLayer {
+        context.endTransparencyLayer()
+      }
       context.restoreGState()
 
     case .tapered, .outlined:
