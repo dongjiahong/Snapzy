@@ -540,28 +540,14 @@ nonisolated struct AnnotationRenderer {
       context.fillPath()
     }
 
-    // Draw text with word wrapping within bounds
-    let paragraphStyle = NSMutableParagraphStyle()
-    paragraphStyle.lineBreakMode = .byWordWrapping
-
-    let attributes: [NSAttributedString.Key: Any] = [
-      .font: font,
-      .foregroundColor: NSColor(properties.strokeColor),
-      .paragraphStyle: paragraphStyle,
-    ]
-
-    let textBounds = bounds.standardized
-    let textRect = AnnotateTextLayout.textRect(
-      for: content,
+    AnnotateTextLayout.draw(
+      displayText,
+      in: context,
+      bounds: bounds,
       font: font,
-      in: textBounds,
+      color: NSColor(properties.strokeColor),
       presentation: properties.textPresentation
     )
-    let text = displayText as NSString
-    context.saveGState()
-    context.clip(to: textBounds)
-    text.draw(in: textRect, withAttributes: attributes)
-    context.restoreGState()
   }
 
   private func drawWatermark(_ content: String, in bounds: CGRect, properties: AnnotationProperties) {

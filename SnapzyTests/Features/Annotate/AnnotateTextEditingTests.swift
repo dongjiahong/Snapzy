@@ -445,28 +445,23 @@ final class AnnotateTextEditingTests: XCTestCase {
   }
 
   func testWrappedCJKTextDoesNotClipLastLineBottomWhenRendered() throws {
-    let text = "一直没有突破趋势K线，然后还被均线压制有可能有第二腿空"
-    let fontSize: CGFloat = 16
-    let font = AnnotateTextLayout.font(size: fontSize)
-    let boxBounds = AnnotateTextLayout.bounds(
-      text: text,
-      font: font,
-      origin: CGPoint(x: 20, y: 20),
-      constrainedWidth: 183,
-      presentation: .plain
-    )
-    let textRect = AnnotateTextLayout.textRect(
-      for: text,
-      font: font,
-      in: boxBounds,
-      presentation: .plain
-    )
+    let cases: [(text: String, fontSize: CGFloat, width: CGFloat)] = [
+      ("一直没有突破趋势K线，然后还被均线压制有可能有第二腿空", 16, 183),
+      ("前面的趋势强劲，理论上，\nA处应该是L1的下跌的恢复，前3根是熊旗，但是K1这里终止了下跌趋势，这里需要注意了", 24, 298),
+    ]
 
-    // Render into an offscreen bitmap twice: once using AnnotationRenderer's
-    // clipped box, and once with unconstrained vertical space at the same topY.
-    let canvasWidth = 260
-    let canvasHeight = 200
-    let renderInkBottomY: (Bool) throws -> Int = { clipped in
+    for sample in cases {
+      let font = AnnotateTextLayout.font(size: sample.fontSize)
+      let boxBounds = AnnotateTextLayout.bounds(
+        text: sample.text,
+        font: font,
+        origin: CGPoint(x: 20, y: 20),
+        constrainedWidth: sample.width,
+        presentation: .plain
+      )
+
+      let canvasWidth = Int(ceil(boxBounds.maxX)) + 40
+      let canvasHeight = Int(ceil(boxBounds.maxY)) + 40
       let rep = try XCTUnwrap(NSBitmapImageRep(
         bitmapDataPlanes: nil,
         pixelsWide: canvasWidth,
@@ -482,46 +477,83 @@ final class AnnotateTextEditingTests: XCTestCase {
       NSGraphicsContext.saveGraphicsState()
       let graphicsContext = try XCTUnwrap(NSGraphicsContext(bitmapImageRep: rep))
       NSGraphicsContext.current = graphicsContext
-      if clipped {
-        let item = AnnotationItem(
-          type: .text(text),
-          bounds: boxBounds,
-          properties: AnnotationProperties(strokeColor: .green, fontSize: fontSize)
-        )
-        let renderer = AnnotationRenderer(context: graphicsContext.cgContext)
-        renderer.draw(item)
-      } else {
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.lineBreakMode = .byWordWrapping
-        let attributes: [NSAttributedString.Key: Any] = [
-          .font: font,
-          .foregroundColor: NSColor.green,
-          .paragraphStyle: paragraphStyle,
-        ]
-        let unconstrainedRect = CGRect(
-          x: textRect.minX,
-          y: 0,
-          width: textRect.width,
-          height: textRect.maxY
-        )
-        (text as NSString).draw(in: unconstrainedRect, withAttributes: attributes)
-      }
+      let item = AnnotationItem(
+        type: .text(sample.text),
+        bounds: boxBounds,
+        properties: AnnotationProperties(strokeColor: .red, fontSize: sample.fontSize)
+      )
+      let renderer = AnnotationRenderer(context: graphicsContext.cgContext)
+      renderer.draw(item)
       NSGraphicsContext.restoreGraphicsState()
 
+      var minBitmapY = canvasHeight
       var maxBitmapY = -1
       for y in 0..<canvasHeight {
         for x in 0..<canvasWidth {
           if let color = rep.colorAt(x: x, y: y), color.alphaComponent > 0.05 {
+            minBitmapY = min(minBitmapY, y)
             maxBitmapY = max(maxBitmapY, y)
           }
         }
       }
-      return maxBitmapY
-    }
 
-    let clippedBottom = try renderInkBottomY(true)
-    let unclippedBottom = try renderInkBottomY(false)
-    XCTAssertGreaterThan(clippedBottom, 0)
-    XCTAssertEqual(clippedBottom, unclippedBottom)
+      XCTAssertGreaterThan(maxBitmapY, minBitmapY)
+      let bottomInkCGY = CGFloat(canvasHeight - 1 - maxBitmapY)
+      let topInkCGY = CGFloat(canvasHeight - 1 - minBitmapY)
+      XCTAssertGreaterThanOrEqual(bottomInkCGY, boxBounds.minY)
+      XCTAssertLessThanOrEqual(topInkCGY, boxBounds.maxY)
+    }
+  }
+
+  func testTrailingNewlineExpandsTextBoundsHeight() {
+    let font = AnnotateTextLayout.font(size: 24)
+    let singleLine = AnnotateTextLayout.bounds(
+      text: "前面的趋势强劲，理论上，",
+      font: font,
+      origin: .zero,
+      constrainedWidth: 320,
+      presentation: .plain
+    )
+    let withNewline = AnnotateTextLayout.bounds(
+      text: "前面的趋势强劲，理论上，\n",
+      font: font,
+      origin: .zero,
+      constrainedWidth: 320,
+      presentation: .plain
+    )
+
+    XCTAssertGreaterThan(withNewline.height, singleLine.height)
+  }
+
+  func testFlippedTextEditorContainerKeepsTextViewTopAlignedOnGrowth() {
+    let textStorage = NSTextStorage()
+    let layoutManager = NSLayoutManager()
+    let textContainer = NSTextContainer(size: CGSize(width: 240, height: AnnotateTextLayout.maxHeight))
+    textContainer.lineFragmentPadding = 0
+    layoutManager.addTextContainer(textContainer)
+    textStorage.addLayoutManager(layoutManager)
+
+    let textView = InlineAnnotationTextEditor.UndoIsolatedTextView(frame: .zero, textContainer: textContainer)
+    textView.isHorizontallyResizable = false
+    textView.isVerticallyResizable = false
+    textView.textContainerInset = NSSize(width: 4, height: 4)
+
+    let container = FlippedTextEditorContainerView(textView: textView)
+    XCTAssertTrue(container.isFlipped)
+
+    // Simulate 1-line display at 0.5x scale, then growth to 2 lines.
+    container.logicalSize = CGSize(width: 280, height: 36)
+    container.frame = CGRect(x: 0, y: 0, width: 140, height: 18)
+    container.syncLayout()
+    XCTAssertEqual(textView.frame.origin, .zero)
+    XCTAssertEqual(textView.frame.size, CGSize(width: 280, height: 36))
+
+    container.logicalSize = CGSize(width: 280, height: 64)
+    container.frame = CGRect(x: 0, y: 0, width: 140, height: 32)
+    container.syncLayout()
+    XCTAssertEqual(textView.frame.origin, .zero)
+    XCTAssertEqual(textView.frame.size, CGSize(width: 280, height: 64))
+    XCTAssertEqual(container.bounds.size.width, 280, accuracy: 0.5)
+    XCTAssertEqual(container.bounds.size.height, 64, accuracy: 0.5)
   }
 }

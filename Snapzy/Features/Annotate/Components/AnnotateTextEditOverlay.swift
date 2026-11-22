@@ -27,15 +27,18 @@ struct TextEditOverlay: View {
          case .text(let currentText) = annotation.type {
 
         let displayBounds = calculateDisplayBounds(annotation.bounds)
-        let displayFont = AnnotateTextLayout.displayFont(
+        let logicalFont = AnnotateTextLayout.font(
           size: annotation.properties.fontSize,
-          fontName: annotation.properties.fontName,
-          scale: scale
+          fontName: annotation.properties.fontName
         )
-        let fieldWidth = max(displayBounds.width, minTextFieldWidth)
+        let logicalSize = CGSize(
+          width: max(annotation.bounds.width, minTextFieldWidth),
+          height: max(annotation.bounds.height, 1)
+        )
+        let fieldWidth = max(displayBounds.width, minTextFieldWidth * max(scale, 0.0001))
         let fieldHeight = max(displayBounds.height, 1)
-        let textContainerInset = AnnotateTextLayout.textEditorInset(
-          scale: scale,
+        let logicalInset = AnnotateTextLayout.textEditorInset(
+          scale: 1,
           presentation: annotation.properties.textPresentation,
           fontSize: annotation.properties.fontSize
         )
@@ -54,7 +57,7 @@ struct TextEditOverlay: View {
           if annotation.properties.textPresentation != .plain {
             TextBubbleShape(
               tailTarget: annotation.properties.textPresentation == .callout ? relativeTailTarget : nil,
-              fontSize: displayFont.pointSize,
+              fontSize: logicalFont.pointSize * max(scale, 0.0001),
               cornerRadius: annotation.properties.cornerRadius * scale
             )
               .fill(annotation.properties.fillColor)
@@ -63,8 +66,9 @@ struct TextEditOverlay: View {
           InlineAnnotationTextEditor(
             editingId: editingId,
             text: $editingText,
-            font: displayFont,
-            textContainerInset: textContainerInset,
+            font: logicalFont,
+            logicalSize: logicalSize,
+            textContainerInset: logicalInset,
             textColor: NSColor(annotation.properties.strokeColor),
             onCommit: { commitEdit(id: editingId) },
             onCancel: cancelEdit,
@@ -165,10 +169,77 @@ private struct TextBubbleShape: Shape {
   }
 }
 
-private struct InlineAnnotationTextEditor: NSViewRepresentable {
+/// Flipped AppKit host view that locks `NSTextView` to the top-left of its frame
+/// and scales its coordinate space cleanly from 1:1 logical typography to display size.
+/// This eliminates both SwiftUI/AppKit non-flipped vertical drift on line wrap and
+/// SF Pro optical-sizing wrap mismatches when `scale != 1.0`.
+final class FlippedTextEditorContainerView: NSView {
+  let textView: InlineAnnotationTextEditor.UndoIsolatedTextView
+  var logicalSize: CGSize = .zero {
+    didSet {
+      guard logicalSize != oldValue else { return }
+      syncLayout()
+    }
+  }
+
+  override var isFlipped: Bool { true }
+
+  init(textView: InlineAnnotationTextEditor.UndoIsolatedTextView) {
+    self.textView = textView
+    super.init(frame: .zero)
+    autoresizesSubviews = false
+    addSubview(textView)
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  override func setFrameSize(_ newSize: NSSize) {
+    super.setFrameSize(newSize)
+    syncLayout()
+  }
+
+  override func layout() {
+    super.layout()
+    syncLayout()
+  }
+
+  func syncLayout() {
+    let targetLogicalSize = CGSize(
+      width: max(logicalSize.width, 1),
+      height: max(logicalSize.height, 1)
+    )
+    if frame.size.width > 0, frame.size.height > 0 {
+      setBoundsOrigin(.zero)
+      setBoundsSize(targetLogicalSize)
+    }
+
+    let textFrame = CGRect(origin: .zero, size: targetLogicalSize)
+    if textView.frame != textFrame {
+      textView.frame = textFrame
+    }
+
+    let contentWidth = max(
+      targetLogicalSize.width - textView.textContainerInset.width * 2,
+      AnnotateTextLayout.minContentWidth
+    )
+    if let textContainer = textView.textContainer {
+      let containerSize = CGSize(width: contentWidth, height: AnnotateTextLayout.maxHeight)
+      if textContainer.containerSize != containerSize {
+        textContainer.containerSize = containerSize
+        textView.layoutManager?.ensureLayout(for: textContainer)
+      }
+    }
+  }
+}
+
+struct InlineAnnotationTextEditor: NSViewRepresentable {
   let editingId: UUID
   @Binding var text: String
   let font: NSFont
+  let logicalSize: CGSize
   let textContainerInset: NSSize
   let textColor: NSColor
   let onCommit: () -> Void
@@ -180,8 +251,26 @@ private struct InlineAnnotationTextEditor: NSViewRepresentable {
     Coordinator(text: $text)
   }
 
-  func makeNSView(context: Context) -> UndoIsolatedTextView {
-    let textView = UndoIsolatedTextView()
+  func makeNSView(context: Context) -> FlippedTextEditorContainerView {
+    // Explicitly build a TextKit 1 stack so live editing uses the exact same
+    // `NSLayoutManager` line-breaking and metrics as `AnnotateTextLayout`.
+    let textStorage = NSTextStorage()
+    let layoutManager = NSLayoutManager()
+    layoutManager.usesFontLeading = true
+    let textContainer = NSTextContainer(
+      size: CGSize(
+        width: max(logicalSize.width - textContainerInset.width * 2, AnnotateTextLayout.minContentWidth),
+        height: AnnotateTextLayout.maxHeight
+      )
+    )
+    textContainer.lineFragmentPadding = 0
+    textContainer.lineBreakMode = .byWordWrapping
+    textContainer.widthTracksTextView = false
+    textContainer.heightTracksTextView = false
+    layoutManager.addTextContainer(textContainer)
+    textStorage.addLayoutManager(layoutManager)
+
+    let textView = UndoIsolatedTextView(frame: .zero, textContainer: textContainer)
     textView.delegate = context.coordinator
     textView.string = text
     textView.onCommit = onCommit
@@ -197,22 +286,24 @@ private struct InlineAnnotationTextEditor: NSViewRepresentable {
     textView.isEditable = true
     textView.isSelectable = true
     textView.isHorizontallyResizable = false
-    textView.isVerticallyResizable = true
-    textView.autoresizingMask = [.width]
+    textView.isVerticallyResizable = false
+    textView.autoresizingMask = []
     textView.textContainerInset = textContainerInset
-    textView.textContainer?.widthTracksTextView = true
-    textView.textContainer?.heightTracksTextView = false
-    textView.textContainer?.lineFragmentPadding = 0
-    textView.textContainer?.lineBreakMode = .byWordWrapping
     textView.font = font
     textView.textColor = textColor
+    textView.insertionPointColor = textColor
+
+    let container = FlippedTextEditorContainerView(textView: textView)
+    container.logicalSize = logicalSize
+
     context.coordinator.focusedEditingId = editingId
     textView.requestInitialFocus()
 
-    return textView
+    return container
   }
 
-  func updateNSView(_ textView: UndoIsolatedTextView, context: Context) {
+  func updateNSView(_ container: FlippedTextEditorContainerView, context: Context) {
+    let textView = container.textView
     context.coordinator.text = $text
     textView.onCommit = onCommit
     textView.onCancel = onCancel
@@ -232,7 +323,11 @@ private struct InlineAnnotationTextEditor: NSViewRepresentable {
     }
     if textView.textColor != textColor {
       textView.textColor = textColor
+      textView.insertionPointColor = textColor
     }
+    container.logicalSize = logicalSize
+    container.syncLayout()
+
     if context.coordinator.focusedEditingId != editingId {
       context.coordinator.focusedEditingId = editingId
       textView.requestInitialFocus()
@@ -245,7 +340,8 @@ private struct InlineAnnotationTextEditor: NSViewRepresentable {
     textView.refreshInputMethodPlacement()
   }
 
-  static func dismantleNSView(_ textView: UndoIsolatedTextView, coordinator: Coordinator) {
+  static func dismantleNSView(_ container: FlippedTextEditorContainerView, coordinator: Coordinator) {
+    let textView = container.textView
     textView.onCommit = nil
     textView.onCancel = nil
     textView.onUndo = nil

@@ -5757,6 +5757,22 @@ nonisolated enum AnnotateTextLayout {
   static let maxWidth: CGFloat = 2000
   static let maxHeight: CGFloat = 2000
 
+  private struct TextKitLayout {
+    let textStorage: NSTextStorage
+    let layoutManager: NSLayoutManager
+    let textContainer: NSTextContainer
+    let glyphRange: NSRange
+    let usedRect: CGRect
+    let glyphBoundingRect: CGRect
+
+    var contentSize: CGSize {
+      CGSize(
+        width: max(usedRect.width, glyphBoundingRect.maxX),
+        height: max(usedRect.maxY, glyphBoundingRect.maxY)
+      )
+    }
+  }
+
   static func font(size: CGFloat, fontName: String? = nil) -> NSFont {
     let clampedSize = min(max(size, 8), 144)
 
@@ -5813,18 +5829,71 @@ nonisolated enum AnnotateTextLayout {
     let insets = TextBubbleGeometry.contentInsets(for: presentation, fontSize: font.pointSize)
     let contentWidth = max(bounds.width - insets.width * 2, minContentWidth)
     let contentHeight = ceil(contentSize(for: text, font: font, constrainedWidth: contentWidth).height)
-    let drawHeight = min(contentHeight, max(bounds.height, 0))
-    let verticalInset = max((bounds.height - drawHeight) / 2, 0)
+    let topInset: CGFloat
+    if presentation == .plain {
+      topInset = insets.height
+    } else {
+      let drawHeight = min(contentHeight, max(bounds.height, 0))
+      topInset = max((bounds.height - drawHeight) / 2, insets.height)
+    }
 
-    // Keep the top edge vertically centered (`maxY = bounds.maxY - verticalInset`),
-    // while extending the draw rect to `bounds.minY` so AppKit's `NSString.draw(in:)`
-    // does not clip descenders or CJK bottom strokes against the bottom inset.
     return CGRect(
       x: bounds.minX + insets.width,
       y: bounds.minY,
       width: contentWidth,
-      height: max(bounds.height - verticalInset, 0)
+      height: max(bounds.height - topInset, 0)
     )
+  }
+
+  /// Render text using the exact same TextKit 1 (`NSLayoutManager`) engine used for
+  /// bounds measurement and live `NSTextView` editing, ensuring identical line wraps,
+  /// line heights, and zero bottom clipping.
+  static func draw(
+    _ text: String,
+    in context: CGContext,
+    bounds: CGRect,
+    font: NSFont,
+    color: NSColor,
+    presentation: TextPresentation = .plain
+  ) {
+    guard !text.isEmpty else { return }
+
+    let textBounds = bounds.standardized
+    let insets = TextBubbleGeometry.contentInsets(for: presentation, fontSize: font.pointSize)
+    let contentWidth = max(textBounds.width - insets.width * 2, minContentWidth)
+    let layout = makeTextKitLayout(
+      text: text,
+      font: font,
+      constrainedWidth: contentWidth,
+      foregroundColor: color
+    )
+
+    let contentHeight = ceil(layout.contentSize.height)
+    let topInset: CGFloat
+    if presentation == .plain {
+      topInset = insets.height
+    } else {
+      topInset = max((textBounds.height - contentHeight) / 2, insets.height)
+    }
+
+    context.saveGState()
+    // Keep `.plain` text unclipped so descenders or CJK bottom strokes are never sliced off.
+    if presentation != .plain {
+      context.clip(to: textBounds)
+    }
+
+    // NSLayoutManager draws in flipped (top-left origin) coordinates; transform locally
+    // so (0, 0) maps to the text block's top-left inside AppKit's bottom-left CGContext.
+    context.translateBy(x: textBounds.minX + insets.width, y: textBounds.maxY - topInset)
+    context.scaleBy(x: 1, y: -1)
+
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
+    layout.layoutManager.drawBackground(forGlyphRange: layout.glyphRange, at: .zero)
+    layout.layoutManager.drawGlyphs(forGlyphRange: layout.glyphRange, at: .zero)
+    NSGraphicsContext.restoreGraphicsState()
+
+    context.restoreGState()
   }
 
   static func measuredHeight(text: String, font: NSFont, constrainedWidth: CGFloat) -> CGFloat {
@@ -5858,7 +5927,7 @@ nonisolated enum AnnotateTextLayout {
     presentation: TextPresentation = .plain
   ) -> CGFloat {
     let insets = TextBubbleGeometry.contentInsets(for: presentation, fontSize: font.pointSize)
-    let measuredWidth = ceil(singleLineSize(for: text, font: font).width) + insets.width * 2
+    let measuredWidth = ceil(unwrappedLineWidth(for: text, font: font)) + insets.width * 2 + 2
     let resolvedMaximumWidth = max(minWidth, min(maximumWidth, maxWidth))
     let resolvedMinimumWidth = min(max(minimumWidth, minWidth), resolvedMaximumWidth)
     return min(max(measuredWidth, resolvedMinimumWidth), resolvedMaximumWidth)
@@ -5869,32 +5938,46 @@ nonisolated enum AnnotateTextLayout {
     return ceil(font.ascender - font.descender + font.leading) + insets.height * 2
   }
 
-  private static func singleLineSize(for text: String, font: NSFont) -> CGSize {
-    (measurementText(for: text) as NSString).size(withAttributes: textAttributes(font: font))
+  private static func unwrappedLineWidth(for text: String, font: NSFont) -> CGFloat {
+    makeTextKitLayout(text: text, font: font, constrainedWidth: maxWidth).contentSize.width
   }
 
   private static func contentSize(for text: String, font: NSFont, constrainedWidth: CGFloat) -> CGSize {
-    let measuredText = measurementText(for: text) as NSString
-    let attributes = textAttributes(font: font)
-    let constraint = CGSize(width: constrainedWidth, height: maxHeight)
+    makeTextKitLayout(text: text, font: font, constrainedWidth: constrainedWidth).contentSize
+  }
 
-    // `NSString.draw(in:withAttributes:)` lays out lines without `.usesFontLeading`,
-    // which for system + CJK fallback fonts (e.g. PingFang SC at 16pt/20pt) advances
-    // slightly more per line than `.usesFontLeading`. Measure both and take the larger
-    // box so committed rendering never clips the bottom of the last line.
-    let drawRect = measuredText.boundingRect(
-      with: constraint,
-      options: [.usesLineFragmentOrigin],
-      attributes: attributes
+  private static func makeTextKitLayout(
+    text: String,
+    font: NSFont,
+    constrainedWidth: CGFloat,
+    foregroundColor: NSColor? = nil
+  ) -> TextKitLayout {
+    let textStorage = NSTextStorage(
+      string: measurementText(for: text),
+      attributes: textAttributes(font: font, foregroundColor: foregroundColor)
     )
-    let leadingRect = measuredText.boundingRect(
-      with: constraint,
-      options: [.usesLineFragmentOrigin, .usesFontLeading],
-      attributes: attributes
+    let layoutManager = NSLayoutManager()
+    layoutManager.usesFontLeading = true
+    let textContainer = NSTextContainer(
+      size: CGSize(width: max(constrainedWidth, minContentWidth), height: maxHeight)
     )
-    return CGSize(
-      width: max(drawRect.width, leadingRect.width),
-      height: max(drawRect.height, leadingRect.height)
+    textContainer.lineFragmentPadding = 0
+    textContainer.lineBreakMode = .byWordWrapping
+    layoutManager.addTextContainer(textContainer)
+    textStorage.addLayoutManager(layoutManager)
+    layoutManager.ensureLayout(for: textContainer)
+
+    let glyphRange = layoutManager.glyphRange(for: textContainer)
+    let usedRect = layoutManager.usedRect(for: textContainer)
+    let glyphBoundingRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+
+    return TextKitLayout(
+      textStorage: textStorage,
+      layoutManager: layoutManager,
+      textContainer: textContainer,
+      glyphRange: glyphRange,
+      usedRect: usedRect,
+      glyphBoundingRect: glyphBoundingRect
     )
   }
 
@@ -5902,13 +5985,20 @@ nonisolated enum AnnotateTextLayout {
     text.isEmpty ? " " : text
   }
 
-  private static func textAttributes(font: NSFont) -> [NSAttributedString.Key: Any] {
+  private static func textAttributes(
+    font: NSFont,
+    foregroundColor: NSColor? = nil
+  ) -> [NSAttributedString.Key: Any] {
     let paragraphStyle = NSMutableParagraphStyle()
     paragraphStyle.lineBreakMode = .byWordWrapping
 
-    return [
+    var attributes: [NSAttributedString.Key: Any] = [
       .font: font,
       .paragraphStyle: paragraphStyle
     ]
+    if let foregroundColor {
+      attributes[.foregroundColor] = foregroundColor
+    }
+    return attributes
   }
 }
