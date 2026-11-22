@@ -443,4 +443,85 @@ final class AnnotateTextEditingTests: XCTestCase {
     }
     XCTAssertEqual(firstText, "first edited")
   }
+
+  func testWrappedCJKTextDoesNotClipLastLineBottomWhenRendered() throws {
+    let text = "一直没有突破趋势K线，然后还被均线压制有可能有第二腿空"
+    let fontSize: CGFloat = 16
+    let font = AnnotateTextLayout.font(size: fontSize)
+    let boxBounds = AnnotateTextLayout.bounds(
+      text: text,
+      font: font,
+      origin: CGPoint(x: 20, y: 20),
+      constrainedWidth: 183,
+      presentation: .plain
+    )
+    let textRect = AnnotateTextLayout.textRect(
+      for: text,
+      font: font,
+      in: boxBounds,
+      presentation: .plain
+    )
+
+    // Render into an offscreen bitmap twice: once using AnnotationRenderer's
+    // clipped box, and once with unconstrained vertical space at the same topY.
+    let canvasWidth = 260
+    let canvasHeight = 200
+    let renderInkBottomY: (Bool) throws -> Int = { clipped in
+      let rep = try XCTUnwrap(NSBitmapImageRep(
+        bitmapDataPlanes: nil,
+        pixelsWide: canvasWidth,
+        pixelsHigh: canvasHeight,
+        bitsPerSample: 8,
+        samplesPerPixel: 4,
+        hasAlpha: true,
+        isPlanar: false,
+        colorSpaceName: .deviceRGB,
+        bytesPerRow: 0,
+        bitsPerPixel: 0
+      ))
+      NSGraphicsContext.saveGraphicsState()
+      let graphicsContext = try XCTUnwrap(NSGraphicsContext(bitmapImageRep: rep))
+      NSGraphicsContext.current = graphicsContext
+      if clipped {
+        let item = AnnotationItem(
+          type: .text(text),
+          bounds: boxBounds,
+          properties: AnnotationProperties(strokeColor: .green, fontSize: fontSize)
+        )
+        let renderer = AnnotationRenderer(context: graphicsContext.cgContext)
+        renderer.draw(item)
+      } else {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineBreakMode = .byWordWrapping
+        let attributes: [NSAttributedString.Key: Any] = [
+          .font: font,
+          .foregroundColor: NSColor.green,
+          .paragraphStyle: paragraphStyle,
+        ]
+        let unconstrainedRect = CGRect(
+          x: textRect.minX,
+          y: 0,
+          width: textRect.width,
+          height: textRect.maxY
+        )
+        (text as NSString).draw(in: unconstrainedRect, withAttributes: attributes)
+      }
+      NSGraphicsContext.restoreGraphicsState()
+
+      var maxBitmapY = -1
+      for y in 0..<canvasHeight {
+        for x in 0..<canvasWidth {
+          if let color = rep.colorAt(x: x, y: y), color.alphaComponent > 0.05 {
+            maxBitmapY = max(maxBitmapY, y)
+          }
+        }
+      }
+      return maxBitmapY
+    }
+
+    let clippedBottom = try renderInkBottomY(true)
+    let unclippedBottom = try renderInkBottomY(false)
+    XCTAssertGreaterThan(clippedBottom, 0)
+    XCTAssertEqual(clippedBottom, unclippedBottom)
+  }
 }

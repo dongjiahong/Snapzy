@@ -5816,11 +5816,14 @@ nonisolated enum AnnotateTextLayout {
     let drawHeight = min(contentHeight, max(bounds.height, 0))
     let verticalInset = max((bounds.height - drawHeight) / 2, 0)
 
+    // Keep the top edge vertically centered (`maxY = bounds.maxY - verticalInset`),
+    // while extending the draw rect to `bounds.minY` so AppKit's `NSString.draw(in:)`
+    // does not clip descenders or CJK bottom strokes against the bottom inset.
     return CGRect(
       x: bounds.minX + insets.width,
-      y: bounds.minY + verticalInset,
+      y: bounds.minY,
       width: contentWidth,
-      height: drawHeight
+      height: max(bounds.height - verticalInset, 0)
     )
   }
 
@@ -5871,12 +5874,28 @@ nonisolated enum AnnotateTextLayout {
   }
 
   private static func contentSize(for text: String, font: NSFont, constrainedWidth: CGFloat) -> CGSize {
-    let rect = (measurementText(for: text) as NSString).boundingRect(
-      with: CGSize(width: constrainedWidth, height: maxHeight),
-      options: [.usesLineFragmentOrigin, .usesFontLeading],
-      attributes: textAttributes(font: font)
+    let measuredText = measurementText(for: text) as NSString
+    let attributes = textAttributes(font: font)
+    let constraint = CGSize(width: constrainedWidth, height: maxHeight)
+
+    // `NSString.draw(in:withAttributes:)` lays out lines without `.usesFontLeading`,
+    // which for system + CJK fallback fonts (e.g. PingFang SC at 16pt/20pt) advances
+    // slightly more per line than `.usesFontLeading`. Measure both and take the larger
+    // box so committed rendering never clips the bottom of the last line.
+    let drawRect = measuredText.boundingRect(
+      with: constraint,
+      options: [.usesLineFragmentOrigin],
+      attributes: attributes
     )
-    return rect.size
+    let leadingRect = measuredText.boundingRect(
+      with: constraint,
+      options: [.usesLineFragmentOrigin, .usesFontLeading],
+      attributes: attributes
+    )
+    return CGSize(
+      width: max(drawRect.width, leadingRect.width),
+      height: max(drawRect.height, leadingRect.height)
+    )
   }
 
   private static func measurementText(for text: String) -> String {
