@@ -660,12 +660,15 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
     initialInteractionMode: AreaSelectionInteractionMode,
     pinToScreen: Bool = false
   ) {
+    let activationStartedAt = CFAbsoluteTimeGetCurrent()
+
     // Prevent multiple area captures - only one at a time
     if isAreaSelectionActive {
       DiagnosticLogger.shared.log(.debug, .capture, "captureArea blocked: already active")
       return
     }
 
+    let exportDirStartedAt = CFAbsoluteTimeGetCurrent()
     guard
       let resolvedSaveDirectory = fileAccessManager.ensureExportDirectoryForOperation(
         promptMessage: L10n.Recording.chooseSaveLocationMessage
@@ -674,6 +677,7 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
       lastCaptureResult = .failure(.saveFailed(L10n.ScreenCapture.saveLocationPermissionRequired))
       return
     }
+    let exportDirMs = Self.elapsedMilliseconds(since: exportDirStartedAt)
     saveDirectory = resolvedSaveDirectory
 
     let captureContext = CaptureContext.fromFrontmostApp()
@@ -689,11 +693,13 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
     let excludeDesktopIcons = DesktopIconManager.shared.isIconHidingEnabled
     let excludeDesktopWidgets = DesktopIconManager.shared.isWidgetHidingEnabled
     let excludeOwnApplication = !includesOwnAppInScreenshots
+    let popoverScanStartedAt = CFAbsoluteTimeGetCurrent()
     let immediateMenuBarPopoverCaptures = freezesAreaCapture
       ? []
       : WindowSelectionQueryService.captureImmediateMenuBarPopoverCaptures(
         excludeOwnApplication: excludeOwnApplication
       )
+    let popoverScanMs = Self.elapsedMilliseconds(since: popoverScanStartedAt)
     let prefetchedContentTask = captureManager.prefetchShareableContent(
       includeDesktopWindows: excludeDesktopIcons || excludeDesktopWidgets
     )
@@ -705,6 +711,7 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
     // Live mode: skip the frozen snapshot so on-screen content keeps playing during selection,
     // then capture the chosen region at completion time.
     if !freezesAreaCapture {
+      let overlayStartedAt = CFAbsoluteTimeGetCurrent()
       startLiveAreaSelection(
         saveDirectory: resolvedSaveDirectory,
         prefetchedContentTask: prefetchedContentTask,
@@ -718,6 +725,13 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
         context: captureContext,
         pinToScreen: pinToScreen
       )
+      DiagnosticLogger.shared.log(.info, .capture, "Area capture activation timing", context: [
+        "mode": "live",
+        "exportDirMs": exportDirMs,
+        "popoverScanMs": popoverScanMs,
+        "overlayPresentMs": Self.elapsedMilliseconds(since: overlayStartedAt),
+        "totalMs": Self.elapsedMilliseconds(since: activationStartedAt),
+      ])
       return
     }
 
@@ -754,7 +768,7 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
     // Snapzy's own just-hidden windows.
     let fastSnapshotTask = hiddenWindowSession.didHideWindows ? nil : makeFastSnapshotTask()
 
-    DispatchQueue.main.asyncAfter(deadline: .now() + snapshotDelay) { [weak self] in
+    let beginFrozenSnapshotCapture: @MainActor () -> Void = { [weak self] in
       guard let self else {
         DiagnosticLogger.shared.log(.warning, .capture, "captureArea: self deallocated")
         hiddenWindowSession.restore()
@@ -796,6 +810,8 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
               "displayID": "\(targetDisplayID)",
               "duration_ms": "\(snapshotDurationMs)",
               "mode": captureMode,
+              "exportDirMs": exportDirMs,
+              "totalMs": Self.elapsedMilliseconds(since: activationStartedAt),
             ]
           )
           self.isCapturing = false
@@ -838,6 +854,14 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
           pinToScreen: pinToScreen
         )
       }
+    }
+
+    if snapshotDelay > 0 {
+      DispatchQueue.main.asyncAfter(deadline: .now() + snapshotDelay) {
+        beginFrozenSnapshotCapture()
+      }
+    } else {
+      beginFrozenSnapshotCapture()
     }
   }
 

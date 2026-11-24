@@ -18,6 +18,8 @@ final class SandboxFileAccessManager {
   private let defaults = UserDefaults.standard
   private var didPromptForMissingExportPermissionThisSession = false
   private var didAttemptLegacyMigrationThisSession = false
+  private var cachedExportBookmarkData: Data?
+  private var cachedExportBookmarkURL: URL?
 
   private init() {}
 
@@ -109,8 +111,12 @@ final class SandboxFileAccessManager {
           relativeTo: nil
         )
         defaults.set(bookmarkData, forKey: PreferencesKeys.exportLocationBookmark)
+        cachedExportBookmarkData = bookmarkData
+        cachedExportBookmarkURL = normalizedURL
       } catch {
         defaults.removeObject(forKey: PreferencesKeys.exportLocationBookmark)
+        cachedExportBookmarkData = nil
+        cachedExportBookmarkURL = nil
         DiagnosticLogger.shared.log(
           .debug,
           .fileAccess,
@@ -137,6 +143,8 @@ final class SandboxFileAccessManager {
       )
       defaults.set(normalizedURL.path, forKey: PreferencesKeys.exportLocation)
       defaults.set(bookmarkData, forKey: PreferencesKeys.exportLocationBookmark)
+      cachedExportBookmarkData = bookmarkData
+      cachedExportBookmarkURL = normalizedURL
       didPromptForMissingExportPermissionThisSession = false
       DiagnosticLogger.shared.log(
         .info,
@@ -268,7 +276,13 @@ final class SandboxFileAccessManager {
 
   private func resolveExportBookmarkURL(removeInvalidBookmark: Bool) -> URL? {
     guard let bookmarkData = defaults.data(forKey: PreferencesKeys.exportLocationBookmark) else {
+      cachedExportBookmarkData = nil
+      cachedExportBookmarkURL = nil
       return nil
+    }
+
+    if cachedExportBookmarkData == bookmarkData, let cachedExportBookmarkURL {
+      return cachedExportBookmarkURL
     }
 
     var isStale = false
@@ -288,10 +302,15 @@ final class SandboxFileAccessManager {
           "Export directory bookmark was stale and refreshed",
           context: ["directory": url.lastPathComponent]
         )
+      } else {
+        cachedExportBookmarkData = bookmarkData
+        cachedExportBookmarkURL = url
       }
 
       return url
     } catch {
+      cachedExportBookmarkData = nil
+      cachedExportBookmarkURL = nil
       if removeInvalidBookmark {
         defaults.removeObject(forKey: PreferencesKeys.exportLocationBookmark)
       }

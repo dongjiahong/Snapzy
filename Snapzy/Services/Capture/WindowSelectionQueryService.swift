@@ -188,6 +188,10 @@ enum WindowSelectionQueryService {
       guard frame.width > 32, frame.height > 32, info.alpha > 0 else { continue }
       guard let displayID = displayID(for: frame) else { continue }
       guard let display = NSScreen.screens.first(where: { $0.displayID == displayID }) else { continue }
+      // Short-circuit before NSRunningApplication lookup for non-menu-bar floating windows.
+      guard abs(frame.maxY - display.visibleFrame.maxY) <= WindowCaptureSelectionPolicy.menuBarAnchorTolerance else {
+        continue
+      }
 
       let bundleIdentifier = info.ownerPID.flatMap {
         NSRunningApplication(processIdentifier: $0)?.bundleIdentifier

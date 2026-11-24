@@ -450,7 +450,6 @@ final class AreaSelectionController: NSObject {
     }
     window.setReceivesKeyboardInput(displayID == keyboardOwnerDisplayID)
     window.activateKeyboardInputIfNeeded()
-    window.overlayView.refreshCursor()
   }
 
   /// Reset window interaction state without hiding.
@@ -2924,6 +2923,7 @@ final class AreaSelectionOverlayView: NSView {
     refreshActiveCursor()
     initializeCrosshairAtCurrentMousePosition()
     updateCoordinateIndicator(at: currentMousePosition)
+    updateCursorProxy()
   }
 
   /// Re-assert the crosshair while a manual drag is in progress. On a nonactivating panel the
@@ -3146,7 +3146,13 @@ final class AreaSelectionOverlayView: NSView {
     )
   }
 
+  private func ensureBackdropPixelsCached() {
+    guard backdropPixelDataArray == nil, let image = currentBackdropImage else { return }
+    cacheBackdropPixels(from: image, scale: backdropScale)
+  }
+
   private func calculateAverageLuminance(for rect: CGRect) -> Double? {
+    ensureBackdropPixelsCached()
     guard let pixelData = backdropPixelDataArray,
           backdropWidth > 0,
           backdropHeight > 0,
@@ -3282,7 +3288,10 @@ final class AreaSelectionOverlayView: NSView {
     CATransaction.commit()
 
     currentBackdropImage = backdrop.image
-    cacheBackdropPixels(from: backdrop.image, scale: backdrop.scaleFactor)
+    backdropScale = backdrop.scaleFactor
+    backdropPixelDataArray = nil
+    backdropWidth = 0
+    backdropHeight = 0
     if magnifier.zoom > 1.0 {
       updateMagnifier(at: currentMousePosition)
     }
@@ -3376,7 +3385,8 @@ final class AreaSelectionOverlayView: NSView {
     }
 
     var testBackdropPixelDataArray: [UInt8]? {
-      backdropPixelDataArray
+      ensureBackdropPixelsCached()
+      return backdropPixelDataArray
     }
 
     var testMagnifierZoom: CGFloat {

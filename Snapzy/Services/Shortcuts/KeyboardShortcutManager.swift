@@ -18,6 +18,27 @@ struct ShortcutConfig: Equatable, Codable {
   /// Carbon does not provide a native Fn constant, so we use an otherwise-unused bit internally.
   static let functionCarbonModifier: UInt32 = 0x2000
 
+  /// Whether `keyCode` is a hardware function key (F1–F20). macOS automatically sets
+  /// `NSEvent.ModifierFlags.function` on F1–F20 key events, so bare F1–F20 recordings
+  /// store `functionCarbonModifier` alone even though Carbon `RegisterEventHotKey`
+  /// handles them natively with `modifiers == 0`.
+  static func isFunctionKeyCode(_ keyCode: UInt32) -> Bool {
+    switch Int(keyCode) {
+    case kVK_F1, kVK_F2, kVK_F3, kVK_F4, kVK_F5, kVK_F6, kVK_F7, kVK_F8, kVK_F9, kVK_F10,
+         kVK_F11, kVK_F12, kVK_F13, kVK_F14, kVK_F15, kVK_F16, kVK_F17, kVK_F18, kVK_F19, kVK_F20:
+      return true
+    default:
+      return false
+    }
+  }
+
+  /// Bare F1–F20 bindings (recorded with only macOS's automatic `.function` flag) can
+  /// register directly via Carbon `RegisterEventHotKey` with 0 modifiers for lower latency
+  /// and event consumption instead of going through passive `NSEvent` monitors.
+  var canUseBareFunctionKeyCarbonHotKey: Bool {
+    modifiers == Self.functionCarbonModifier && Self.isFunctionKeyCode(keyCode)
+  }
+
   /// Memberwise initializer
   init(keyCode: UInt32, modifiers: UInt32) {
     self.keyCode = keyCode
@@ -1362,8 +1383,9 @@ final class KeyboardShortcutManager {
 
       guard status == noErr else { return status }
 
-      // Dispatch to main actor
-      Task { @MainActor in
+      // Carbon application event target callbacks already run on the main thread.
+      // Invoke synchronously to avoid an extra async scheduling hop.
+      MainActor.assumeIsolated {
         KeyboardShortcutManager.shared.handleHotkey(id: hotkeyID.id)
       }
 
@@ -1624,6 +1646,10 @@ final class KeyboardShortcutManager {
         return "\(kind.rawValue)=\(combo)[session-gated]"
       }
       if config.modifiers & ShortcutConfig.functionCarbonModifier != 0 {
+        if config.canUseBareFunctionKeyCarbonHotKey,
+           !fnBindings.contains(where: { $0.config == config }) {
+          return "\(kind.rawValue)=\(combo)[registered]"
+        }
         return "\(kind.rawValue)=\(combo)[fn-monitor]"
       }
       guard config.modifiers != 0 else {
@@ -1651,19 +1677,23 @@ final class KeyboardShortcutManager {
     // so idle session Fn-bindings stay out of fnBindings too.
     guard shouldRegisterNow(for: kind) else { return }
 
-    // Carbon cannot express the Fn modifier. Fn bindings are dispatched through
-    // key event monitors (see updateFnMonitors) instead of RegisterEventHotKey,
-    // so the non-Fn combo keeps working and Fn-only combos actually fire.
-    guard config.modifiers & ShortcutConfig.functionCarbonModifier == 0 else {
+    let carbonModifiers: UInt32
+    if config.canUseBareFunctionKeyCarbonHotKey {
+      // Bare F1–F20 keys register natively with Carbon using 0 modifiers for instant
+      // dispatch and event consumption; fall back to fnBindings if Carbon rejects it.
+      carbonModifiers = 0
+    } else if config.modifiers & ShortcutConfig.functionCarbonModifier != 0 {
+      // Carbon cannot express the Fn modifier combined with other modifiers or non-F keys.
       fnBindings.append((id: hotkeyID.id, config: config))
       return
+    } else {
+      guard config.modifiers != 0 else { return }
+      carbonModifiers = config.modifiers
     }
-
-    guard config.modifiers != 0 else { return }
 
     let status = RegisterEventHotKey(
       config.keyCode,
-      config.modifiers,
+      carbonModifiers,
       hotkeyID,
       GetApplicationEventTarget(),
       0,
@@ -1678,6 +1708,9 @@ final class KeyboardShortcutManager {
         context: ["status": String(status)]
       )
       ref = nil
+      if config.canUseBareFunctionKeyCarbonHotKey {
+        fnBindings.append((id: hotkeyID.id, config: config))
+      }
       return
     }
 
@@ -1697,17 +1730,20 @@ final class KeyboardShortcutManager {
   ) {
     guard isShortcutEnabled(for: parentKind), let config else { return }
 
-    // Same Fn handling as registerShortcutIfNeeded: dispatch via key event monitors.
-    guard config.modifiers & ShortcutConfig.functionCarbonModifier == 0 else {
+    let carbonModifiers: UInt32
+    if config.canUseBareFunctionKeyCarbonHotKey {
+      carbonModifiers = 0
+    } else if config.modifiers & ShortcutConfig.functionCarbonModifier != 0 {
       fnBindings.append((id: hotkeyID.id, config: config))
       return
+    } else {
+      guard config.modifiers != 0 else { return }
+      carbonModifiers = config.modifiers
     }
-
-    guard config.modifiers != 0 else { return }
 
     let status = RegisterEventHotKey(
       config.keyCode,
-      config.modifiers,
+      carbonModifiers,
       hotkeyID,
       GetApplicationEventTarget(),
       0,

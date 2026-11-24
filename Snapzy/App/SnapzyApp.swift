@@ -72,6 +72,7 @@ struct AppLaunchPolicy {
 class AppDelegate: NSObject, NSApplicationDelegate {
   private let launchPolicyProvider: () -> AppLaunchPolicy
   private var coordinator: AppCoordinator?
+  private var appNapActivity: NSObjectProtocol?
   private var pendingDeepLinkURLs: [URL] = []
   private var pendingOpenFileURLs: [URL] = []
   private var didFinishLaunching = false
@@ -113,6 +114,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Cleanup orphaned temp capture files from previous sessions
     TempCaptureManager.shared.cleanupOrphanedFiles()
 
+    // Keep the menu bar app out of App Nap so global capture hotkeys react immediately.
+    appNapActivity = ProcessInfo.processInfo.beginActivity(
+      options: [.userInitiatedAllowingIdleSystemSleep, .latencyCritical],
+      reason: "Keep global screenshot hotkeys responsive"
+    )
+
     let coordinator = AppCoordinator(environment: AppEnvironment.live())
     self.coordinator = coordinator
     coordinator.applicationDidFinishLaunching()
@@ -122,6 +129,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   func applicationWillTerminate(_ notification: Notification) {
+    if let appNapActivity {
+      ProcessInfo.processInfo.endActivity(appNapActivity)
+      self.appNapActivity = nil
+    }
     NSAppleEventManager.shared().removeEventHandler(
       forEventClass: AEEventClass(kInternetEventClass),
       andEventID: AEEventID(kAEGetURL)
